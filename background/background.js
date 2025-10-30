@@ -21,7 +21,14 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (!alarm || !alarm.name) return;
   if (alarm.name.startsWith('breet:work:end:')) {
-    createBreakNotification();
+    shouldDelayNotification().then((delay) => {
+      if (delay) {
+        // Snooze 5 minutes
+        chrome.alarms.create(`breet:snooze:${Date.now()}`, { when: Date.now() + 5 * 60 * 1000 });
+      } else {
+        createBreakNotification();
+      }
+    });
   }
 });
 
@@ -63,6 +70,26 @@ async function stopAllTimers() {
       breakDuration: 5,
     }
   });
+}
+
+async function shouldDelayNotification() {
+  const now = new Date();
+  // Check idle state (user away) – if idle/locked, delay
+  const idleState = await new Promise((resolve) => chrome.idle.queryState(60, resolve));
+  if (idleState === 'locked' || idleState === 'idle') return true;
+
+  // Check schedule window from userProfile
+  const { userProfile = {} } = await chrome.storage.local.get('userProfile');
+  const schedule = userProfile.schedule || { startTime: '09:00', endTime: '18:00', includeWeekends: false };
+  const [sh, sm] = (schedule.startTime || '09:00').split(':').map(n=>parseInt(n,10));
+  const [eh, em] = (schedule.endTime || '18:00').split(':').map(n=>parseInt(n,10));
+  const start = new Date(now); start.setHours(sh||0, sm||0, 0, 0);
+  const end = new Date(now); end.setHours(eh||0, em||0, 0, 0);
+  const within = now >= start && now <= end;
+  const isWeekend = [0,6].includes(now.getDay());
+  if (!within) return true;
+  if (!schedule.includeWeekends && isWeekend) return true;
+  return false;
 }
 
 function createBreakNotification() {

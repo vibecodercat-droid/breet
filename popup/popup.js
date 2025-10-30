@@ -6,7 +6,16 @@ const MODE_PRESETS = {
 
 let selectedMode = 'pomodoro';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Onboarding gate: if not completed, redirect to onboarding page
+  try {
+    const { userProfile = {} } = await chrome.storage.local.get('userProfile');
+    if (!userProfile.onboardingCompleted) {
+      window.location.href = chrome.runtime.getURL('../pages/onboarding.html');
+      return;
+    }
+  } catch {}
+
   document.querySelectorAll('.mode-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       selectedMode = btn.dataset.mode;

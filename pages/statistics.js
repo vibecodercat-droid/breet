@@ -1,4 +1,5 @@
 import { toCsvAndDownload } from "../lib/csv.js";
+import { groupByWeekdayCompletion } from "../lib/stats-manager.js";
 
 function startOfLocalDay(ts = Date.now()) {
   const d = new Date(ts);
@@ -27,5 +28,16 @@ document.addEventListener('DOMContentLoaded', () => {
     toCsvAndDownload(breakHistory, `breet_break_history_${new Date().toISOString().slice(0,10)}.csv`);
   });
   refreshToday();
+  renderWeekly();
 });
+
+async function renderWeekly(){
+  const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
+  const weekly = groupByWeekdayCompletion(breakHistory);
+  const labels = ['일','월','화','수','목','금','토'];
+  const data = weekly.map(w => Math.round((w.rate||0)*100));
+  const ctx = document.getElementById('weeklyChart').getContext('2d');
+  // Minimal vendor renders bars
+  new window.Chart(ctx, { data: { labels, datasets: [{ data }] } });
+}
 

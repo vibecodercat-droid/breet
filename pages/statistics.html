@@ -15,10 +15,15 @@
         <div><div class="text-sm text-gray-500">완료율</div><div id="todayRate" class="text-2xl font-semibold">0%</div></div>
       </section>
       <section class="bg-white rounded-lg shadow-sm p-4">
+        <h2 class="text-base font-semibold mb-2">주간 완료율</h2>
+        <canvas id="weeklyChart" width="600" height="200"></canvas>
+      </section>
+      <section class="bg-white rounded-lg shadow-sm p-4">
         <h2 class="text-base font-semibold">CSV 내보내기</h2>
         <button id="exportCsv" class="mt-2 px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">다운로드</button>
       </section>
     </main>
+    <script src="../vendor/chart.min.js"></script>
     <script src="statistics.js" type="module"></script>
   </body>
   </html>
