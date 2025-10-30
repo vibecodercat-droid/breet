@@ -1,0 +1,3 @@
+/* Minimal adjustments on top of Tailwind */
+html, body { min-width: 320px; }
+

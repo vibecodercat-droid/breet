@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Breet Statistics</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
+  </head>
+  <body class="bg-gray-50 text-gray-800 font-sans">
+    <main class="max-w-2xl mx-auto p-6 space-y-4">
+      <h1 class="text-xl font-semibold text-blue-600">통계</h1>
+      <section class="bg-white rounded-lg shadow-sm p-4 grid grid-cols-3 gap-4">
+        <div><div class="text-sm text-gray-500">오늘 완료</div><div id="todayDone" class="text-2xl font-semibold">0</div></div>
+        <div><div class="text-sm text-gray-500">오늘 제안</div><div id="todaySuggested" class="text-2xl font-semibold">0</div></div>
+        <div><div class="text-sm text-gray-500">완료율</div><div id="todayRate" class="text-2xl font-semibold">0%</div></div>
+      </section>
+      <section class="bg-white rounded-lg shadow-sm p-4">
+        <h2 class="text-base font-semibold">CSV 내보내기</h2>
+        <button id="exportCsv" class="mt-2 px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">다운로드</button>
+      </section>
+    </main>
+    <script src="statistics.js" type="module"></script>
+  </body>
+  </html>
+

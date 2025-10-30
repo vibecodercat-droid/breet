@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Breet</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body class="bg-gray-50 text-gray-800 font-sans">
+    <div class="p-4 w-80 space-y-4">
+      <header class="flex items-center justify-between">
+        <h1 class="text-lg font-semibold text-blue-600">Breet</h1>
+        <a class="text-sm text-gray-600 hover:text-blue-600" href="../pages/settings.html" target="_blank">설정</a>
+      </header>
+
+      <section class="bg-white rounded-lg shadow-sm p-3 space-y-2">
+        <h2 class="text-base font-semibold">집중 타이머</h2>
+        <div class="grid grid-cols-3 gap-2">
+          <button data-mode="pomodoro" class="mode-btn px-3 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600">25/5</button>
+          <button data-mode="long" class="mode-btn px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">50/10</button>
+          <button data-mode="short" class="mode-btn px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">15/3</button>
+        </div>
+        <div class="flex items-center justify-between">
+          <div id="countdown" class="text-xl font-semibold">--:--</div>
+          <div class="space-x-2">
+            <button id="startBtn" class="px-3 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600">시작</button>
+            <button id="stopBtn" class="px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">정지</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm p-3">
+        <h2 class="text-base font-semibold">오늘의 할 일</h2>
+        <ul id="todoList" class="mt-2 space-y-1"></ul>
+        <div class="mt-2 flex gap-2">
+          <input id="todoInput" class="flex-1 border rounded-md px-2 py-1" placeholder="할 일 추가" />
+          <button id="addTodo" class="px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">추가</button>
+        </div>
+      </section>
+
+      <footer class="text-xs text-gray-500 text-right">
+        <a class="hover:text-blue-600" href="../pages/statistics.html" target="_blank">통계 보기</a>
+      </footer>
+    </div>
+    <script src="popup.js" type="module"></script>
+  </body>
+  </html>
+

@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Breet – Break + Breathe",
+  "description": "잠깐의 호흡으로 리셋하는 AI 브레이크 코치 (MVP)",
+  "version": "0.1.0",
+  "permissions": [
+    "storage",
+    "alarms",
+    "idle",
+    "notifications"
+  ],
+  "background": {
+    "service_worker": "background/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Breet",
+    "default_popup": "popup/popup.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;"
+  }
+}
+

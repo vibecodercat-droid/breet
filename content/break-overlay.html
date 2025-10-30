@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Break Overlay</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
+    <link rel="stylesheet" href="break-overlay.css" />
+  </head>
+  <body class="bg-gray-50 text-gray-800 font-sans">
+    <main class="min-h-screen flex items-center justify-center">
+      <div class="bg-white rounded-lg shadow-sm p-6 w-full max-w-md space-y-4 text-center">
+        <h1 id="breakName" class="text-xl font-semibold">브레이크</h1>
+        <p id="breakDesc" class="text-gray-700">잠깐 호흡하며 쉬어가요.</p>
+        <div id="timer" class="text-3xl font-bold">--:--</div>
+        <div class="flex justify-center gap-3">
+          <button id="complete" class="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600">완료</button>
+          <button id="skip" class="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">건너뛰기</button>
+        </div>
+      </div>
+    </main>
+    <script src="break-overlay.js" type="module"></script>
+  </body>
+  </html>
+

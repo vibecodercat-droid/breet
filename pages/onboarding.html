@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Breet Onboarding</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
+    <link rel="stylesheet" href="onboarding.css" />
+  </head>
+  <body class="bg-gray-50 text-gray-800 font-sans">
+    <main class="max-w-xl mx-auto p-6">
+      <h1 class="text-xl font-semibold text-blue-600">Breet 온보딩</h1>
+      <form id="form" class="mt-4 space-y-4 bg-white rounded-lg shadow-sm p-4">
+        <section>
+          <h2 class="font-semibold">작업 유형(복수 선택)</h2>
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <label><input type="checkbox" name="workPatterns" value="coding" /> 코딩</label>
+            <label><input type="checkbox" name="workPatterns" value="writing" /> 문서작성</label>
+            <label><input type="checkbox" name="workPatterns" value="design" /> 디자인</label>
+            <label><input type="checkbox" name="workPatterns" value="meeting" /> 미팅</label>
+          </div>
+        </section>
+
+        <section>
+          <h2 class="font-semibold">건강 관심사(복수 선택)</h2>
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <label><input type="checkbox" name="healthConcerns" value="eyeStrain" /> 눈 피로</label>
+            <label><input type="checkbox" name="healthConcerns" value="neckPain" /> 목 통증</label>
+            <label><input type="checkbox" name="healthConcerns" value="backPain" /> 허리 통증</label>
+            <label><input type="checkbox" name="healthConcerns" value="stress" /> 스트레스</label>
+          </div>
+        </section>
+
+        <section>
+          <h2 class="font-semibold">루틴 설정</h2>
+          <div class="mt-2 space-y-2">
+            <label class="block"><input type="radio" name="routineType" value="pomodoro" checked /> 포모도로 (25 / 5)</label>
+            <label class="block"><input type="radio" name="routineType" value="long" /> 긴 집중 (50 / 10)</label>
+            <label class="block"><input type="radio" name="routineType" value="short" /> 짧은 집중 (15 / 3)</label>
+          </div>
+        </section>
+
+        <section>
+          <h2 class="font-semibold">알림 가능 시간대</h2>
+          <div class="flex gap-2 mt-2">
+            <input id="startTime" class="border rounded-md px-2 py-1" placeholder="09:00" />
+            <input id="endTime" class="border rounded-md px-2 py-1" placeholder="18:00" />
+            <label class="flex items-center gap-2 text-sm"><input id="includeWeekends" type="checkbox" /> 주말 포함</label>
+          </div>
+        </section>
+
+        <div class="text-right">
+          <button class="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600" type="submit">완료</button>
+        </div>
+      </form>
+    </main>
+    <script src="onboarding.js" type="module"></script>
+  </body>
+  </html>
+
