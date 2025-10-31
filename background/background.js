@@ -93,9 +93,10 @@ async function shouldDelayNotification() {
 }
 
 function createBreakNotification() {
+  const icon = chrome.runtime.getURL('icons/icon48.png');
   chrome.notifications.create(`breet:break:${Date.now()}`, {
     type: 'basic',
-    iconUrl: 'icons/icon48.png',
+    iconUrl: icon,
     title: '브레이크 타임',
     message: '잠깐 쉬어볼까요? 시작을 눌러 진행하세요.',
     buttons: [
