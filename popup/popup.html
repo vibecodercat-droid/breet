@@ -11,7 +11,12 @@
     <div class="p-4 w-80 space-y-4">
       <header class="flex items-center justify-between">
         <h1 class="text-lg font-semibold text-blue-600">Breet</h1>
-        <a class="text-sm text-gray-600 hover:text-blue-600" href="../pages/settings.html" target="_blank">설정</a>
+        <div class="flex items-center gap-2">
+          <span id="authStatus" class="text-xs text-gray-600">오프라인</span>
+          <button id="loginBtn" class="px-2 py-1 rounded-md bg-gray-200 hover:bg-gray-300 text-xs">로그인</button>
+          <button id="logoutBtn" class="px-2 py-1 rounded-md bg-gray-200 hover:bg-gray-300 text-xs hidden">로그아웃</button>
+          <a class="text-sm text-gray-600 hover:text-blue-600" href="../pages/settings.html" target="_blank">설정</a>
+        </div>
       </header>
 
       <section class="bg-white rounded-lg shadow-sm p-3 space-y-2">

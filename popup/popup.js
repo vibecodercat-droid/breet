@@ -1,3 +1,4 @@
+import { isAuthenticated, loginWithGoogle, logout, loadAuth } from '../lib/auth.js';
 const MODE_PRESETS = {
   pomodoro: { work: 25, rest: 5 },
   long: { work: 50, rest: 10 },
@@ -16,6 +17,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch {}
 
+  await refreshAuthUI();
+
+  document.getElementById('loginBtn').addEventListener('click', async () => {
+    try { await loginWithGoogle(); } catch (e) { alert('로그인 실패: ' + e.message); }
+    refreshAuthUI();
+  });
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await logout();
+    refreshAuthUI();
+  });
+
   document.querySelectorAll('.mode-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       selectedMode = btn.dataset.mode;
@@ -31,6 +43,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   refreshCountdown();
   setInterval(refreshCountdown, 1000);
 });
+
+async function refreshAuthUI() {
+  const ok = await isAuthenticated();
+  const status = document.getElementById('authStatus');
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (ok) {
+    const a = await loadAuth();
+    status.textContent = a?.email || '로그인됨';
+    loginBtn.classList.add('hidden');
+    logoutBtn.classList.remove('hidden');
+  } else {
+    status.textContent = '오프라인';
+    loginBtn.classList.remove('hidden');
+    logoutBtn.classList.add('hidden');
+  }
+}
 
 function onStart() {
   const preset = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
