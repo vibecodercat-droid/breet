@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String            @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  provider        String
+  providerUserId  String            @map("provider_user_id")
+  email           String
+  name            String?
+  imageUrl        String?           @map("image_url")
+  createdAt       DateTime          @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt       DateTime          @default(now()) @db.Timestamptz(6) @map("updated_at")
+
+  profile         Profile?
+  breakHistory    BreakHistory[]
+  todos           Todo[]
+  statsDaily      StatsDaily[]
+  sessions        Session[]
+  refreshTokens   RefreshToken[]
+  aiRecommendations AiRecommendation[]
+
+  @@unique([provider, providerUserId])
+  @@map("users")
+}
+
+model Profile {
+  userId               String    @id @db.Uuid @map("user_id")
+  onboardingCompleted  Boolean?  @default(false) @map("onboarding_completed")
+  onboardingDate       DateTime? @db.Timestamptz(6) @map("onboarding_date")
+  workPatterns         String[]  @db.Text
+  healthConcerns       String[]  @db.Text
+  preferredBreakTypes  String[]  @db.Text
+  routine              Json?     @db.JsonB
+  schedule             Json?     @db.JsonB
+  createdAt            DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt            DateTime  @default(now()) @db.Timestamptz(6) @map("updated_at")
+
+  user                 User      @relation(fields: [userId], references: [id])
+
+  @@map("profiles")
+}
+
+model BreakHistory {
+  id                    Int         @id @default(autoincrement())
+  userId                String      @db.Uuid @map("user_id")
+  breakId               String      @map("break_id")
+  breakType             String      @map("break_type")
+  duration              Int
+  completed             Boolean     @default(true)
+  timestamp             DateTime    @db.Timestamptz(6)
+  recommendationSource  String?     @map("recommendation_source")
+  recId                 String?     @db.Uuid @map("rec_id")
+  source                String?
+  createdAt             DateTime    @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  user                  User        @relation(fields: [userId], references: [id])
+  aiRecommendation      AiRecommendation? @relation("RecToBreakHistory", fields: [recId], references: [id])
+
+  @@index([userId, timestamp], map: "idx_break_user_ts")
+  @@index([userId, completed, timestamp], map: "idx_break_user_completed_ts")
+  @@map("break_history")
+}
+
+model Todo {
+  id         Int       @id @default(autoincrement())
+  userId     String    @db.Uuid @map("user_id")
+  text       String
+  completed  Boolean   @default(false)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt  DateTime  @default(now()) @db.Timestamptz(6) @map("updated_at")
+
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, updatedAt], map: "idx_todos_user_updated")
+  @@map("todos")
+}
+
+model StatsDaily {
+  date      DateTime @db.Date @map("date")
+  userId    String   @db.Uuid @map("user_id")
+  total     Int      @default(0)
+  completed Int      @default(0)
+  rate      Decimal  @db.Decimal(5, 2) @default(0.00)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@id([date, userId])
+  @@index([userId, date], map: "idx_stats_user_date")
+  @@map("stats_daily")
+}
+
+model Session {
+  id            String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId        String   @db.Uuid @map("user_id")
+  mode          String
+  startTs       BigInt   @map("start_ts")
+  workDuration  Int      @map("work_duration")
+  breakDuration Int      @map("break_duration")
+  endedAt       DateTime? @db.Timestamptz(6) @map("ended_at")
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id         String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId     String   @db.Uuid @map("user_id")
+  tokenHash  String   @map("token_hash")
+  salt       String
+  expiresAt  DateTime @db.Timestamptz(6) @map("expires_at")
+  createdAt  DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([tokenHash], map: "refresh_tokens_token_hash_key")
+  @@index([userId, expiresAt], map: "idx_tokens_user_exp")
+  @@map("refresh_tokens")
+}
+
+model AiRecommendation {
+  id              String         @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId          String         @db.Uuid @map("user_id")
+  contextHash     String?        @map("context_hash")
+  requestPayload  Json?          @db.JsonB @map("request_payload")
+  responsePayload Json?          @db.JsonB @map("response_payload")
+  model           String?
+  latencyMs       Int?           @map("latency_ms")
+  createdAt       DateTime       @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  user            User           @relation(fields: [userId], references: [id])
+  breakUsages     BreakHistory[] @relation("RecToBreakHistory")
+
+  @@index([userId, createdAt], map: "idx_ai_rec_user_created")
+  @@map("ai_recommendations")
+}
+
+
