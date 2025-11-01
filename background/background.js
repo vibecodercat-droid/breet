@@ -231,9 +231,9 @@ async function playSound(path) {
 
 async function openPreBreakSelection(payload) {
   // pre-compute recommendation and allow user to confirm/rotate before starting work
-  const rec = await recommendNextBreakWithAI();
+  const rec = await recommendNextBreakWithAI(payload?.breakMinutes);
   await chrome.storage.local.set({ prebreakPayload: payload, pendingBreak: rec });
   const url = chrome.runtime.getURL('pages/break-selection.html');
-  chrome.tabs.create({ url });
+  chrome.windows.create({ url, type: 'popup', width: 420, height: 360 });
 }
 

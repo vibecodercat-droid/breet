@@ -9,10 +9,7 @@
   <body class="bg-gray-50 text-gray-800 font-sans">
     <main class="max-w-sm mx-auto p-4 space-y-3">
       <h1 class="text-lg font-semibold">예정 휴식 선택</h1>
-      <div id="current" class="p-3 bg-white rounded-lg shadow-sm">
-        <div id="recTitle" class="font-semibold"></div>
-        <div id="recDesc" class="text-sm text-gray-600"></div>
-      </div>
+      <div id="list" class="space-y-2"></div>
       <div class="flex gap-2">
         <button id="confirm" class="flex-1 px-3 py-2 rounded-md bg-blue-500 text-white">이걸로 시작</button>
         <button id="next" class="px-3 py-2 rounded-md bg-gray-200">다른 제안</button>
@@ -21,27 +18,34 @@
     <script>
       async function load() {
         const { pendingBreak = null, pendingBreakCandidates = [], prebreakPayload = null } = await chrome.storage.local.get(['pendingBreak','pendingBreakCandidates','prebreakPayload']);
-        window._cands = pendingBreakCandidates || [];
-        window._sel = pendingBreak;
+        window._cands = (pendingBreakCandidates && pendingBreakCandidates.length ? pendingBreakCandidates : (pendingBreak ? [pendingBreak] : [])).slice(0,3);
+        window._selIdx = 0;
         window._payload = prebreakPayload;
         render();
       }
       function render(){
-        const r = window._sel || {}; 
-        document.getElementById('recTitle').textContent = r.name ? `${r.name} · ${r.duration}분` : '추천 준비 중';
-        document.getElementById('recDesc').textContent = r.type || '';
+        const box = document.getElementById('list');
+        box.innerHTML = '';
+        (window._cands||[]).forEach((c, i) => {
+          const div = document.createElement('div');
+          div.className = 'p-3 bg-white rounded-lg shadow-sm flex items-center justify-between cursor-pointer ' + (i===window._selIdx ? 'ring-2 ring-blue-500' : '');
+          div.addEventListener('click', ()=>{ window._selIdx = i; render(); });
+          const left = document.createElement('div');
+          left.innerHTML = `<div class="font-semibold">${c?.name||''}</div><div class="text-sm text-gray-600">${c?.type||''}</div>`;
+          div.appendChild(left);
+          box.appendChild(div);
+        });
       }
       document.getElementById('confirm').addEventListener('click', async () => {
-        if (window._sel) await chrome.storage.local.set({ pendingBreak: window._sel });
+        const sel = (window._cands||[])[window._selIdx];
+        if (sel) await chrome.storage.local.set({ pendingBreak: sel });
         if (window._payload) chrome.runtime.sendMessage({ type: 'breet:startTimer', payload: window._payload });
         window.close();
       });
       document.getElementById('next').addEventListener('click', async () => {
-        const list = window._cands || []; const cur = window._sel || {}; 
-        if (!list.length) return; 
-        const idx = Math.max(0, list.findIndex(c => c.id === cur.id));
-        window._sel = list[(idx + 1) % list.length];
-        await chrome.storage.local.set({ pendingBreak: window._sel });
+        const list = window._cands || []; if (!list.length) return;
+        window._selIdx = (window._selIdx + 1) % list.length;
+        await chrome.storage.local.set({ pendingBreak: list[window._selIdx] });
         render();
       });
       load();
