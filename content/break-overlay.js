@@ -46,6 +46,8 @@ async function finish(completed) {
   };
   const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
   await chrome.storage.local.set({ breakHistory: [...breakHistory, entry] });
+  // reset session state to idle so popup can return to default UI
+  await chrome.storage.local.set({ sessionState: { mode: 'idle', startTs: null, workDuration: 25, breakDuration: 5 } });
   await chrome.storage.local.remove('pendingBreak');
   window.close();
 }

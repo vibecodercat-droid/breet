@@ -34,8 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('.mode-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       selectedMode = btn.dataset.mode;
-      document.querySelectorAll('.mode-btn').forEach((b) => b.classList.remove('bg-blue-500','text-white'));
-      btn.classList.add('bg-blue-500','text-white');
+      setActiveModeButton(selectedMode);
     });
   });
 
@@ -63,6 +62,21 @@ async function refreshAuthUI() {
     status.textContent = '오프라인';
     loginBtn.classList.remove('hidden');
     logoutBtn.classList.add('hidden');
+  }
+}
+
+function setActiveModeButton(mode) {
+  const all = document.querySelectorAll('.mode-btn');
+  all.forEach((b) => {
+    b.classList.remove('bg-blue-500','text-white');
+    if (!b.classList.contains('bg-gray-200')) b.classList.add('bg-gray-200');
+  });
+  if (mode) {
+    const btn = document.querySelector(`.mode-btn[data-mode="${mode}"]`);
+    if (btn) {
+      btn.classList.remove('bg-gray-200');
+      btn.classList.add('bg-blue-500','text-white');
+    }
   }
 }
 
@@ -188,8 +202,10 @@ async function refreshCountdown() {
   const { sessionState } = await chrome.storage.local.get('sessionState');
   if (!sessionState || !sessionState.startTs || sessionState.mode === 'idle') {
     el.textContent = '--:--';
+    setActiveModeButton(null);
     return;
   }
+  setActiveModeButton(sessionState.mode);
   const endTs = sessionState.startTs + sessionState.workDuration * 60 * 1000;
   const remain = Math.max(0, endTs - Date.now());
   const mm = String(Math.floor(remain / 60000)).padStart(2, '0');
