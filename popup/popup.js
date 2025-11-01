@@ -35,6 +35,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.addEventListener('click', () => {
       selectedMode = btn.dataset.mode;
       setActiveModeButton(selectedMode);
+      // Click-to-start: selecting a mode immediately starts the timer
+      onStart();
     });
   });
 
