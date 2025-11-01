@@ -276,6 +276,8 @@ async function playSound(path) {
 }
 
 async function openPreBreakSelection(payload) {
+  // 이전 후보/선택값 초기화 후, 현재 모드의 분수로 새 후보 생성
+  await chrome.storage.local.set({ pendingBreak: null, pendingBreakCandidates: [] });
   const rec = await recommendNextBreakWithAI(payload?.breakMinutes);
   await chrome.storage.local.set({
     prebreakPayload: payload,
