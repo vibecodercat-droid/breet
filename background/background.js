@@ -4,14 +4,34 @@
 const STORAGE_KEYS = {
   SESSION: 'sessionState',
   PROFILE: 'userProfile',
+  PENDING_BREAK: 'pendingBreak',
+};
+
+const ALARM_NAMES = {
+  WORK: 'breet_work_timer',
+  BREAK: 'breet_break_timer',
+  TOAST: 'breet_toast_timer',
+};
+
+const PHASES = {
+  IDLE: 'idle',
+  SELECTING: 'selecting',
+  WORK: 'work',
+  WORK_ENDING: 'work_ending',
+  BREAK: 'break',
+  BREAK_ENDING: 'break_ending',
+  PAUSED: 'paused',
 };
 
 chrome.runtime.onInstalled.addListener(() => {
-  // Initialize default session state on install/update
   chrome.storage.local.set({
     [STORAGE_KEYS.SESSION]: {
-      mode: 'idle',
+      phase: PHASES.IDLE,
+      mode: null,
       startTs: null,
+      endTs: null,
+      pausedAt: null,
+      remainingMs: null,
       workDuration: 25,
       breakDuration: 5,
     }
@@ -20,15 +40,12 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (!alarm || !alarm.name) return;
-  if (alarm.name.startsWith('breet:work:end:')) {
-    // Work finished → toast 10s then auto-start break timer
-    playSound('bgm/task_complete_bgm.mp3');
-    notifyToast('과업 시간이 끝났습니다!', '쉬는 시간을 시작합니다.', 10000);
-    setTimeout(startBreakTimer, 10000);
-  } else if (alarm.name.startsWith('breet:break:end:')) {
-    playSound('bgm/rest_complete_bgm.mp3');
-    notifyToast('쉬는 시간이 끝났습니다!', '다시 집중을 시작해볼까요?', 5000);
-    stopAllTimers();
+  if (alarm.name === ALARM_NAMES.WORK) {
+    handleWorkEnd();
+  } else if (alarm.name === ALARM_NAMES.TOAST) {
+    handleToastEnd();
+  } else if (alarm.name === ALARM_NAMES.BREAK) {
+    handleBreakEnd();
   }
 });
 
@@ -65,33 +82,43 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  if (message.type === 'breet:breakCompleted') {
+    handleBreakCompleted(message.payload).then(() => sendResponse({ ok: true })).catch((e)=>sendResponse({ ok:false, error:String(e)}));
+    return true;
+  }
 });
 
 async function startWorkTimer(mode, workMinutes = 25, breakMinutes = 5) {
-  // If paused, resume with remaining time
-  const { sessionState } = await chrome.storage.local.get('sessionState');
-  const pausedRemain = sessionState?.mode === 'paused' ? (sessionState.pausedRemainMs || 0) : 0;
-  const now = Date.now();
-  const startTs = now;
-  const when = pausedRemain > 0 ? now + pausedRemain : now + workMinutes * 60 * 1000;
-  await chrome.alarms.clearAll();
-  await chrome.alarms.create(`breet:work:end:${startTs}`, { when });
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.SESSION]: {
-      mode: mode || sessionState?.mode || 'pomodoro',
-      startTs,
-      workDuration: pausedRemain > 0 ? Math.ceil(pausedRemain / 60000) : workMinutes,
-      breakDuration: breakMinutes,
-    }
-  });
+  try {
+    await clearAllTimers();
+    const startTs = Date.now();
+    const endTs = startTs + workMinutes * 60 * 1000;
+    await chrome.alarms.create(ALARM_NAMES.WORK, { when: endTs });
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.SESSION]: {
+        phase: PHASES.WORK,
+        mode: mode || 'pomodoro',
+        startTs,
+        endTs,
+        pausedAt: null,
+        remainingMs: null,
+        workDuration: workMinutes,
+        breakDuration: breakMinutes,
+      }
+    });
+  } catch (e) { console.error('[Timer] startWorkTimer error', e); }
 }
 
 async function stopAllTimers() {
-  await chrome.alarms.clearAll();
+  await clearAllTimers();
   await chrome.storage.local.set({
     [STORAGE_KEYS.SESSION]: {
-      mode: 'idle',
+      phase: PHASES.IDLE,
+      mode: null,
       startTs: null,
+      endTs: null,
+      pausedAt: null,
+      remainingMs: null,
       workDuration: 25,
       breakDuration: 5,
     }
@@ -99,43 +126,43 @@ async function stopAllTimers() {
 }
 
 async function pauseTimer() {
-  const { sessionState } = await chrome.storage.local.get('sessionState');
-  if (!sessionState?.startTs || sessionState.mode === 'idle') return;
-  const endTs = sessionState.startTs + sessionState.workDuration * 60 * 1000;
-  const remain = Math.max(0, endTs - Date.now());
-  await chrome.alarms.clearAll();
+  const { sessionState } = await chrome.storage.local.get(STORAGE_KEYS.SESSION);
+  if (!sessionState?.endTs) return;
+  const remain = Math.max(0, sessionState.endTs - Date.now());
+  const alarmName = sessionState.phase === PHASES.BREAK ? ALARM_NAMES.BREAK : ALARM_NAMES.WORK;
+  await chrome.alarms.clear(alarmName);
   await chrome.storage.local.set({
-    [STORAGE_KEYS.SESSION]: { ...sessionState, mode: 'paused', pausedRemainMs: remain }
+    [STORAGE_KEYS.SESSION]: { ...sessionState, phase: PHASES.PAUSED, pausedAt: Date.now(), remainingMs: remain }
   });
 }
 
 async function resumeTimer() {
-  const { sessionState } = await chrome.storage.local.get('sessionState');
-  if (sessionState?.mode !== 'paused') return;
-  const remain = sessionState.pausedRemainMs || 0;
+  const { sessionState } = await chrome.storage.local.get(STORAGE_KEYS.SESSION);
+  if (sessionState?.phase !== PHASES.PAUSED) return;
+  const remain = sessionState.remainingMs || 0;
   const now = Date.now();
-  await chrome.alarms.clearAll();
-  await chrome.alarms.create(`breet:work:end:${now}`, { when: now + remain });
+  const alarmName = (sessionState.mode === 'break' || sessionState.phase === PHASES.BREAK) ? ALARM_NAMES.BREAK : ALARM_NAMES.WORK;
+  await chrome.alarms.create(alarmName, { when: now + remain });
   await chrome.storage.local.set({
-    [STORAGE_KEYS.SESSION]: { ...sessionState, mode: sessionState.modeBeforePause || 'pomodoro', startTs: now }
+    [STORAGE_KEYS.SESSION]: { ...sessionState, phase: (alarmName === ALARM_NAMES.BREAK ? PHASES.BREAK : PHASES.WORK), startTs: now, endTs: now + remain, pausedAt: null, remainingMs: null }
   });
 }
 
 async function startBreakTimer() {
-  const { sessionState } = await chrome.storage.local.get('sessionState');
+  const { sessionState } = await chrome.storage.local.get(STORAGE_KEYS.SESSION);
   const breakMinutes = sessionState?.breakDuration || 5;
   const startTs = Date.now();
-  const when = startTs + breakMinutes * 60 * 1000;
-  await chrome.alarms.clearAll();
-  await chrome.alarms.create(`breet:break:end:${startTs}`, { when });
+  const endTs = startTs + breakMinutes * 60 * 1000;
+  await chrome.alarms.create(ALARM_NAMES.BREAK, { when: endTs });
   await chrome.storage.local.set({
     [STORAGE_KEYS.SESSION]: {
-      mode: 'break',
+      ...sessionState,
+      phase: PHASES.BREAK,
       startTs,
-      workDuration: sessionState?.workDuration || 25,
-      breakDuration: breakMinutes,
+      endTs,
     }
   });
+  chrome.windows.create({ url: chrome.runtime.getURL('content/break-overlay.html'), type: 'popup', width: 500, height: 650, focused: true });
 }
 
 async function shouldDelayNotification() {
@@ -237,10 +264,70 @@ async function playSound(path) {
 }
 
 async function openPreBreakSelection(payload) {
-  // pre-compute recommendation and allow user to confirm/rotate before starting work
   const rec = await recommendNextBreakWithAI(payload?.breakMinutes);
-  await chrome.storage.local.set({ prebreakPayload: payload, pendingBreak: rec });
+  await chrome.storage.local.set({ prebreakPayload: payload, pendingBreak: rec, [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: payload?.breakMinutes || 5 } });
   const url = chrome.runtime.getURL('pages/break-selection.html');
-  chrome.windows.create({ url, type: 'popup', width: 420, height: 360 });
+  chrome.windows.create({ url, type: 'popup', width: 450, height: 500 });
+}
+
+async function handleWorkEnd() {
+  try {
+    const { sessionState } = await chrome.storage.local.get(STORAGE_KEYS.SESSION);
+    if (sessionState?.phase !== PHASES.WORK) return;
+    await playSound('bgm/task_complete_bgm.mp3');
+    notifyToast('과업 시간이 끝났습니다!', '쉬는 시간을 시작합니다.', 10000);
+    await chrome.storage.local.set({ [STORAGE_KEYS.SESSION]: { ...sessionState, phase: PHASES.WORK_ENDING, startTs: Date.now(), endTs: Date.now() + 10000 } });
+    await chrome.alarms.create(ALARM_NAMES.TOAST, { when: Date.now() + 10000 });
+  } catch (e) { console.error('[Timer] handleWorkEnd error', e); }
+}
+
+async function handleToastEnd() {
+  try { await startBreakTimer(); } catch (e) { console.error('[Timer] handleToastEnd error', e); }
+}
+
+async function handleBreakEnd() {
+  try {
+    const { sessionState } = await chrome.storage.local.get(STORAGE_KEYS.SESSION);
+    if (sessionState?.phase !== PHASES.BREAK) return;
+    await playSound('bgm/rest_complete_bgm.mp3');
+    notifyToast('쉬는 시간이 끝났습니다!', '다시 집중을 시작해볼까요?', 5000);
+    await saveBreakHistory(true, sessionState.breakDuration);
+    await stopAllTimers();
+  } catch (e) { console.error('[Timer] handleBreakEnd error', e); }
+}
+
+async function handleBreakCompleted(payload) {
+  try {
+    const { completed = true, actualDuration = 0 } = payload || {};
+    await chrome.alarms.clear(ALARM_NAMES.BREAK);
+    await saveBreakHistory(!!completed, actualDuration || undefined);
+    await stopAllTimers();
+  } catch (e) { console.error('[Timer] handleBreakCompleted error', e); }
+}
+
+async function clearAllTimers() {
+  await chrome.alarms.clear(ALARM_NAMES.WORK);
+  await chrome.alarms.clear(ALARM_NAMES.BREAK);
+  await chrome.alarms.clear(ALARM_NAMES.TOAST);
+}
+
+async function saveBreakHistory(completed, actualDuration) {
+  try {
+    const { pendingBreak } = await chrome.storage.local.get(STORAGE_KEYS.PENDING_BREAK);
+    const { sessionState } = await chrome.storage.local.get(STORAGE_KEYS.SESSION);
+    if (!pendingBreak) return;
+    const duration = Number(actualDuration) || sessionState?.breakDuration || 5;
+    const entry = {
+      id: Date.now(),
+      breakId: pendingBreak.id,
+      breakType: pendingBreak.type,
+      duration,
+      completed: !!completed,
+      timestamp: new Date().toISOString(),
+      recommendationSource: pendingBreak.source || 'rule',
+    };
+    const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
+    await chrome.storage.local.set({ breakHistory: [...breakHistory, entry] });
+  } catch (e) { console.error('[Timer] saveBreakHistory error', e); }
 }
 

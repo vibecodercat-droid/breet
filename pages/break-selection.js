@@ -1,49 +1,100 @@
-let usedIds = new Set();
+let allCandidates = [];
+let currentPage = 0;
+const maxPages = 5;
+let payload = null;
+let isLoading = false;
 
-document.addEventListener('DOMContentLoaded', () => {
-  load();
+document.addEventListener('DOMContentLoaded', async () => {
+  await initialize();
   document.getElementById('confirm').addEventListener('click', onConfirm);
+  const prev = document.getElementById('prev'); if (prev) prev.addEventListener('click', onPrev);
   document.getElementById('next').addEventListener('click', onNext);
 });
 
-async function load() {
-  const { pendingBreak = null, pendingBreakCandidates = [], prebreakPayload = null } = await chrome.storage.local.get(['pendingBreak','pendingBreakCandidates','prebreakPayload']);
-  window._cands = (pendingBreakCandidates && pendingBreakCandidates.length ? pendingBreakCandidates : (pendingBreak ? [pendingBreak] : [])).slice(0,3);
-  window._selIdx = 0;
-  window._payload = prebreakPayload;
-  (window._cands||[]).forEach(c => { if (c?.id) usedIds.add(c.id); });
-  render();
+async function initialize() {
+  try {
+    const { pendingBreakCandidates = [], prebreakPayload = null, allBreakCandidates = [] } = await chrome.storage.local.get(['pendingBreakCandidates','prebreakPayload','allBreakCandidates']);
+    payload = prebreakPayload;
+    if (Array.isArray(allBreakCandidates) && allBreakCandidates.length >= 3) {
+      allCandidates = allBreakCandidates; currentPage = 0; render(); return;
+    }
+    if (pendingBreakCandidates && pendingBreakCandidates.length >= 3) {
+      allCandidates = pendingBreakCandidates.slice(0,3); currentPage = 0; await chrome.storage.local.set({ allBreakCandidates: allCandidates }); render(); return;
+    }
+    await loadNewPage();
+  } catch (e) {
+    console.error('[Selection] init error', e); showError('초기화 실패. 다시 시도해주세요.');
+  }
 }
 
 function render(){
-  const box = document.getElementById('list');
-  if (!box) return;
+  const box = document.getElementById('list'); if (!box) return;
+  const startIdx = currentPage * 3; const pageItems = allCandidates.slice(startIdx, startIdx + 3);
   box.innerHTML = '';
-  (window._cands||[]).forEach((c, i) => {
-    const div = document.createElement('div');
-    div.className = 'p-3 bg-white rounded-lg shadow-sm flex items-center justify-between cursor-pointer ' + (i===window._selIdx ? 'ring-2 ring-blue-500' : '');
-    div.addEventListener('click', ()=>{ window._selIdx = i; render(); });
-    const left = document.createElement('div');
-    // 한글 설명만 표시
-    left.innerHTML = `<div class="font-semibold">${c?.name||''}</div>`;
-    div.appendChild(left);
-    box.appendChild(div);
-  });
+  if (!pageItems.length) {
+    box.innerHTML = '<div class="text-center text-gray-500 py-8">추천을 불러오는 중...</div>';
+  } else {
+    pageItems.forEach((c) => {
+      const div = document.createElement('div');
+      div.className = 'p-4 bg-white rounded-lg shadow-sm border-2 border-blue-500 bg-blue-50';
+      const left = document.createElement('div');
+      left.innerHTML = `<div class=\"font-semibold text-gray-900 text-base mb-1\">${c?.name||''}</div>` + (c?.rationale ? `<div class=\"text-sm text-gray-600 mt-2\">${c.rationale}</div>` : '');
+      div.appendChild(left);
+      box.appendChild(div);
+    });
+  }
+  updateButtons();
+}
+
+function updateButtons() {
+  const confirmBtn = document.getElementById('confirm');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const pageInfo = document.getElementById('pageInfo');
+  const currentItems = allCandidates.slice(currentPage * 3, currentPage * 3 + 3);
+  if (confirmBtn) confirmBtn.disabled = currentItems.length === 0 || isLoading;
+  if (prevBtn) prevBtn.disabled = currentPage === 0 || isLoading;
+  if (nextBtn) {
+    const hasNextPage = (currentPage + 1) * 3 < allCandidates.length;
+    const canLoadMore = currentPage < maxPages - 1;
+    nextBtn.disabled = isLoading || (!hasNextPage && !canLoadMore);
+    if (isLoading) nextBtn.textContent = '생성 중...';
+    else if (hasNextPage) nextBtn.textContent = '다음 제안';
+    else if (canLoadMore) nextBtn.textContent = '새 제안 받기';
+    else nextBtn.textContent = '마지막 제안';
+  }
+  if (pageInfo) {
+    const totalPages = Math.min(Math.ceil(allCandidates.length / 3), maxPages);
+    pageInfo.textContent = `${currentPage + 1} / ${totalPages || 1}`;
+  }
 }
 
 async function onConfirm() {
-  const sel = (window._cands||[])[window._selIdx];
-  if (sel) await chrome.storage.local.set({ pendingBreak: sel });
-  if (window._payload) chrome.runtime.sendMessage({ type: 'breet:startTimer', payload: window._payload });
+  const startIdx = currentPage * 3; const pageItems = allCandidates.slice(startIdx, startIdx + 3);
+  if (!pageItems.length) return;
+  const sel = pageItems[0];
+  await chrome.storage.local.set({ pendingBreak: sel });
+  if (payload) chrome.runtime.sendMessage({ type: 'breet:startTimer', payload });
+  await chrome.storage.local.remove('allBreakCandidates');
   window.close();
 }
 
+async function onPrev() { if (currentPage <= 0) return; currentPage--; render(); }
+
 async function onNext() {
-  const nextBtn = document.getElementById('next');
-  if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = '생성 중...'; }
   try {
-    const excludeIds = Array.from(usedIds);
-    const bm = window._payload?.breakMinutes || 5;
+    const hasNextPage = (currentPage + 1) * 3 < allCandidates.length;
+    if (hasNextPage) { currentPage++; render(); return; }
+    if (currentPage >= maxPages - 1) return;
+    await loadNewPage();
+  } catch (e) { console.error('[Selection] next error', e); }
+}
+
+async function loadNewPage() {
+  if (isLoading) return; isLoading = true; updateButtons();
+  try {
+    const excludeIds = allCandidates.map(c => c.id);
+    const bm = payload?.breakMinutes || 5;
     await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ type: 'breet:requestNewBreaks', payload: { breakMinutes: bm, excludeIds } }, (resp) => {
         if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
@@ -52,15 +103,17 @@ async function onNext() {
       });
     });
     const { pendingBreakCandidates = [] } = await chrome.storage.local.get('pendingBreakCandidates');
-    window._cands = (pendingBreakCandidates || []).slice(0,3);
-    window._selIdx = 0;
-    (window._cands||[]).forEach(c => { if (c?.id) usedIds.add(c.id); });
+    if (!Array.isArray(pendingBreakCandidates) || pendingBreakCandidates.length < 3) throw new Error('Not enough new candidates');
+    allCandidates = [...allCandidates, ...pendingBreakCandidates.slice(0,3)];
+    await chrome.storage.local.set({ allBreakCandidates: allCandidates });
+    currentPage++;
     render();
   } catch (e) {
-    console.error('[Selection] next error', e);
-  } finally {
-    if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = '다른 제안 받기'; }
-  }
+    console.error('[Selection] Load new page error', e); showError('새로운 추천을 불러오는데 실패했습니다.');
+  } finally { isLoading = false; updateButtons(); }
 }
 
-
+function showError(message) {
+  const list = document.getElementById('list');
+  if (list) list.innerHTML = `<div class="text-center py-8"><div class="text-red-500 mb-3">${message}</div><button onclick="location.reload()" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">다시 시도</button></div>`;
+}
