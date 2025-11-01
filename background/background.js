@@ -21,11 +21,13 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (!alarm || !alarm.name) return;
   if (alarm.name.startsWith('breet:work:end:')) {
-    // Work finished → toast notify and auto-start break timer
-    notifyToast('과업 시간이 끝났습니다!', '쉬는 시간을 시작합니다.');
-    startBreakTimer();
+    // Work finished → toast 10s then auto-start break timer
+    playSound('sounds/work_end.mp3');
+    notifyToast('과업 시간이 끝났습니다!', '쉬는 시간을 시작합니다.', 10000);
+    setTimeout(startBreakTimer, 10000);
   } else if (alarm.name.startsWith('breet:break:end:')) {
-    notifyToast('쉬는 시간이 끝났습니다!', '다시 집중을 시작해볼까요?');
+    playSound('sounds/break_end.mp3');
+    notifyToast('쉬는 시간이 끝났습니다!', '다시 집중을 시작해볼까요?', 5000);
     stopAllTimers();
   }
 });
@@ -172,10 +174,20 @@ chrome.notifications.onButtonClicked.addListener((notifId, btnIdx) => {
   }
 });
 
-function notifyToast(title, message) {
+function notifyToast(title, message, durationMs = 10000) {
   const icon = chrome.runtime.getURL('icons/icon48.png');
-  chrome.notifications.create(`breet:toast:${Date.now()}`, {
+  const id = `breet:toast:${Date.now()}`;
+  chrome.notifications.create(id, {
     type: 'basic', iconUrl: icon, title, message, priority: 0
   });
+  setTimeout(() => chrome.notifications.clear(id), durationMs);
+}
+
+function playSound(path) {
+  try {
+    const audio = new Audio(chrome.runtime.getURL(path));
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
+  } catch {}
 }
 
