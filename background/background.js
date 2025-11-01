@@ -22,11 +22,11 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (!alarm || !alarm.name) return;
   if (alarm.name.startsWith('breet:work:end:')) {
     // Work finished → toast 10s then auto-start break timer
-    playSound('sounds/work_end.mp3');
+    playSound('bgm/task_complete_bgm.mp3');
     notifyToast('과업 시간이 끝났습니다!', '쉬는 시간을 시작합니다.', 10000);
     setTimeout(startBreakTimer, 10000);
   } else if (alarm.name.startsWith('breet:break:end:')) {
-    playSound('sounds/break_end.mp3');
+    playSound('bgm/rest_complete_bgm.mp3');
     notifyToast('쉬는 시간이 끝났습니다!', '다시 집중을 시작해볼까요?', 5000);
     stopAllTimers();
   }
