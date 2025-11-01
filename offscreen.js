@@ -1,0 +1,11 @@
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.type === 'offscreen:play' && msg.url) {
+    try {
+      const audio = new Audio(msg.url);
+      audio.volume = typeof msg.volume === 'number' ? msg.volume : 0.5;
+      audio.play().catch(() => {});
+    } catch (e) {}
+  }
+});
+
+
