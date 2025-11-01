@@ -122,7 +122,8 @@ async function onAddTodo() {
   const text = (input.value || '').trim();
   if (!text) return;
   const { todos = [] } = await chrome.storage.local.get('todos');
-  const next = [...todos, { id: Date.now(), text, completed: false }];
+  const now = Date.now();
+  const next = [...todos, { id: now, text, completed: false, createdAt: now, updatedAt: now }];
   await chrome.storage.local.set({ todos: next });
   input.value = '';
   loadTodos();
@@ -130,7 +131,11 @@ async function onAddTodo() {
 
 async function toggleTodo(id) {
   const { todos = [] } = await chrome.storage.local.get('todos');
-  const next = todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
+  const next = todos.map((t) => {
+    if (t.id !== id) return t;
+    const completed = !t.completed;
+    return { ...t, completed, updatedAt: Date.now(), completedAt: completed ? Date.now() : null };
+  });
   await chrome.storage.local.set({ todos: next });
   loadTodos();
 }
