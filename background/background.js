@@ -77,9 +77,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message.type === 'breet:requestNewBreaks') {
     const { breakMinutes, excludeIds = [] } = message.payload || {};
-    recommendNextBreakWithAI(breakMinutes, excludeIds)
-      .then((top) => sendResponse({ ok: true, top }))
-      .catch((e) => sendResponse({ ok: false, error: String(e) }));
+    (async () => {
+      try {
+        const { prebreakMeta = { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes || 5 } } = await chrome.storage.local.get('prebreakMeta');
+        if ((prebreakMeta.otherUsed || 0) >= (prebreakMeta.maxOther || 4)) {
+          sendResponse({ ok: false, error: 'limit_reached' });
+          return;
+        }
+        const bm = breakMinutes ?? prebreakMeta.breakMinutes ?? 5;
+        await recommendNextBreakWithAI(bm, excludeIds);
+        await chrome.storage.local.set({ prebreakMeta: { ...prebreakMeta, otherUsed: (prebreakMeta.otherUsed || 0) + 1, breakMinutes: bm } });
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e) });
+      }
+    })();
     return true;
   }
   if (message.type === 'breet:breakCompleted') {
@@ -265,7 +277,12 @@ async function playSound(path) {
 
 async function openPreBreakSelection(payload) {
   const rec = await recommendNextBreakWithAI(payload?.breakMinutes);
-  await chrome.storage.local.set({ prebreakPayload: payload, pendingBreak: rec, [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: payload?.breakMinutes || 5 } });
+  await chrome.storage.local.set({
+    prebreakPayload: payload,
+    prebreakMeta: { otherUsed: 0, maxOther: 4, breakMinutes: payload?.breakMinutes || 5 },
+    pendingBreak: rec,
+    [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: payload?.breakMinutes || 5 }
+  });
   const url = chrome.runtime.getURL('pages/break-selection.html');
   chrome.windows.create({ url, type: 'popup', width: 450, height: 500 });
 }
