@@ -92,18 +92,25 @@ async function shouldDelayNotification() {
   return false;
 }
 
+import { recommendNextBreakWithAI } from '../lib/recommender.js';
+
 function createBreakNotification() {
   const icon = chrome.runtime.getURL('icons/icon48.png');
-  chrome.notifications.create(`breet:break:${Date.now()}`, {
-    type: 'basic',
-    iconUrl: icon,
-    title: '브레이크 타임',
-    message: '잠깐 쉬어볼까요? 시작을 눌러 진행하세요.',
-    buttons: [
-      { title: '시작' },
-      { title: '나중에' }
-    ],
-    priority: 0,
+  recommendNextBreakWithAI().then(async (rec) => {
+    await chrome.storage.local.set({ pendingBreak: rec });
+    const detail = rec?.name ? `${rec.name} · ${rec.duration}분` : '추천 브레이크';
+    chrome.notifications.create(`breet:break:${Date.now()}`, {
+      type: 'basic',
+      iconUrl: icon,
+      title: '브레이크 타임',
+      message: detail,
+      buttons: [ { title: '시작' }, { title: '나중에' } ],
+      priority: 0,
+    });
+  }).catch(() => {
+    chrome.notifications.create(`breet:break:${Date.now()}`, {
+      type: 'basic', iconUrl: icon, title: '브레이크 타임', message: '잠깐 쉬어볼까요?', buttons: [{ title: '시작' }, { title: '나중에' }], priority: 0,
+    });
   });
 }
 
