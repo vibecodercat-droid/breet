@@ -1,5 +1,5 @@
 import { isAuthenticated, loginWithGoogle, logout, loadAuth } from '../lib/auth.js';
-import { requestDailyAffirmation } from '../lib/ai-client.js';
+import { requestDailyAffirmation, requestDailyAffirmationBatch } from '../lib/ai-client.js';
 const MODE_PRESETS = {
   pomodoro: { work: 25, rest: 5 },
   long: { work: 50, rest: 10 },
@@ -42,6 +42,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('startBtn').addEventListener('click', onStart);
   document.getElementById('stopBtn').addEventListener('click', onStop);
   document.getElementById('addTodo').addEventListener('click', onAddTodo);
+  const showAffBtn = document.getElementById('showAffBatch');
+  if (showAffBtn) showAffBtn.addEventListener('click', onShowAffBatch);
   loadTodos();
   refreshCountdown();
   setInterval(refreshCountdown, 1000);
@@ -140,6 +142,29 @@ async function renderDailyAffirmation() {
   }
   el.textContent = text;
   await chrome.storage.local.set({ dailyAffirmation: { dateKey: dk, text } });
+}
+
+async function onShowAffBatch() {
+  const list = document.getElementById('affBatch');
+  if (!list) return;
+  list.classList.remove('hidden');
+  list.innerHTML = '<li class="text-gray-400">불러오는 중...</li>';
+  const { userProfile = {} } = await chrome.storage.local.get('userProfile');
+  let texts = [];
+  try {
+    texts = await requestDailyAffirmationBatch({ workPatterns: userProfile.workPatterns, healthConcerns: userProfile.healthConcerns }, 20);
+  } catch {}
+  const EMOJIS = ['🌿','😊','☕️','🌸','🍀','✨','💙','🕊️'];
+  const fmt = (t, i) => `${(t||'').slice(0,8).trim()} ${EMOJIS[i % EMOJIS.length]}`.trim();
+  if (!texts.length) {
+    texts = ['숨 고르기','잠시 쉼','눈 쉬어요','목 이완','어깨 풀자','물 한잔','미소 한 번','천천히 호흡'].slice(0,8);
+  }
+  list.innerHTML = '';
+  texts.slice(0,20).forEach((t, i) => {
+    const li = document.createElement('li');
+    li.textContent = fmt(t, i);
+    list.appendChild(li);
+  });
 }
 
 // moved up
