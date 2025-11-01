@@ -129,7 +129,7 @@ async function renderDailyAffirmation() {
   } catch {}
   const EMOJIS = ['🌿','😊','☕️','🩵','🍀','✨','💙','🕊️'];
   const FALLBACKS = ['쉬고 가요','숨 고르기','짧게 쉼','눈 쉬어요','목 이완해','어깨 풀자','물 한잔요','천천히 호흡'];
-  const MAX = 10, MIN = 5;
+  const MAX = 10, MIN = 6;
   const ensureLen = (s) => {
     const trimmed = (s || '').trim();
     if (trimmed.length >= MIN) return trimmed.slice(0, MAX);
