@@ -103,8 +103,9 @@ async function loadNewPage() {
   try {
     const excludeIds = allCandidates.map(c => c.id);
     const bm = payload?.breakMinutes || 5;
+    const reqPayload = sessionId ? { sessionId, excludeIds } : { breakMinutes: bm, excludeIds };
     await new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type: 'breet:requestNewBreaks', payload: { sessionId, breakMinutes: bm, excludeIds } }, (resp) => {
+      chrome.runtime.sendMessage({ type: 'breet:requestNewBreaks', payload: reqPayload }, (resp) => {
         if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
         if (!resp || !resp.ok) return reject(new Error(resp?.error || 'failed'));
         resolve();
