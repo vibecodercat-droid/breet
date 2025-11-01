@@ -41,8 +41,7 @@ function render(){
       div.className = 'p-4 rounded-lg shadow-sm cursor-pointer transition-colors ' + (isSel ? 'border-2 border-blue-500 bg-blue-50' : 'bg-white');
       div.addEventListener('click', () => { selectedIndex = startIdx + i; render(); });
       const left = document.createElement('div');
-      const hint = c?.hint || '';
-      left.innerHTML = `<div class=\"font-semibold text-gray-900 text-base mb-1\">${c?.name||''}</div>` + (hint ? `<div class=\"text-sm text-gray-600 mt-2\">${hint}</div>` : '');
+      left.innerHTML = `<div class=\"font-semibold text-gray-900 text-base mb-1\">${c?.name||''}</div>`;
       div.appendChild(left);
       box.appendChild(div);
     });
