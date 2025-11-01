@@ -312,7 +312,8 @@ async function handleWorkEnd() {
     if (sessionState?.phase !== PHASES.WORK) return;
     await playSound('bgm/task_complete_bgm.mp3');
     notifyToast('과업 시간이 끝났습니다!', '쉬는 시간을 시작합니다.', 10000);
-    await chrome.storage.local.set({ [STORAGE_KEYS.SESSION]: { ...sessionState, phase: PHASES.WORK_ENDING, startTs: Date.now(), endTs: Date.now() + 10000 } });
+    const now = Date.now();
+    await chrome.storage.local.set({ lastWorkEndTs: now, [STORAGE_KEYS.SESSION]: { ...sessionState, phase: PHASES.WORK_ENDING, startTs: now, endTs: now + 10000 } });
     await chrome.alarms.create(ALARM_NAMES.TOAST, { when: Date.now() + 10000 });
   } catch (e) { console.error('[Timer] handleWorkEnd error', e); }
 }
@@ -350,12 +351,13 @@ async function clearAllTimers() {
 async function saveBreakHistory(completed, actualDuration) {
   try {
     const { pendingBreak } = await chrome.storage.local.get(STORAGE_KEYS.PENDING_BREAK);
-    const { sessionState } = await chrome.storage.local.get(STORAGE_KEYS.SESSION);
+    const { sessionState, lastWorkEndTs = null } = await chrome.storage.local.get([STORAGE_KEYS.SESSION,'lastWorkEndTs']);
     if (!pendingBreak) return;
     const duration = Number(actualDuration) || sessionState?.breakDuration || 5;
     const workDur = sessionState?.workDuration || null;
     const finishedTs = Date.now();
-    const workEndTs = finishedTs - duration * 60 * 1000; // 추정: 브레이크 종료 시각에서 역산
+    const workEndTs = lastWorkEndTs || (finishedTs - duration * 60 * 1000);
+    const label = (workDur===25 && duration===5) ? '25/5' : (workDur===50 && duration===10) ? '50/10' : (workDur===15 && duration===3) ? '15/3' : (workDur===1 && duration===1) ? '1/1' : `${workDur||'-'}/${duration}`;
     const entry = {
       id: finishedTs,
       breakId: pendingBreak.id,
@@ -363,6 +365,7 @@ async function saveBreakHistory(completed, actualDuration) {
       breakName: pendingBreak.name || null,
       duration,
       workDuration: workDur,
+      label,
       completed: !!completed,
       timestamp: new Date(finishedTs).toISOString(),
       workEndTs: new Date(workEndTs).toISOString(),
