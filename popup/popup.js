@@ -52,6 +52,8 @@ async function refreshAuthUI() {
   const status = document.getElementById('authStatus');
   const loginBtn = document.getElementById('loginBtn');
   const logoutBtn = document.getElementById('logoutBtn');
+  // Guard for stale/cached HTML
+  if (!status || !loginBtn || !logoutBtn) return;
   if (ok) {
     const a = await loadAuth();
     status.textContent = a?.email || '로그인됨';
@@ -182,6 +184,7 @@ function onStop() {
 
 async function refreshCountdown() {
   const el = document.getElementById('countdown');
+  if (!el) return;
   const { sessionState } = await chrome.storage.local.get('sessionState');
   if (!sessionState || !sessionState.startTs || sessionState.mode === 'idle') {
     el.textContent = '--:--';
