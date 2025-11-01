@@ -1,4 +1,5 @@
 import { isAuthenticated, loginWithGoogle, logout, loadAuth } from '../lib/auth.js';
+import { requestDailyAffirmation } from '../lib/ai-client.js';
 const MODE_PRESETS = {
   pomodoro: { work: 25, rest: 5 },
   long: { work: 50, rest: 10 },
@@ -19,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await refreshAuthUI();
   await renderOnboardingSummary();
+  await renderDailyAffirmation();
 
   document.getElementById('loginBtn').addEventListener('click', async () => {
     try { await loginWithGoogle(); } catch (e) { alert('로그인 실패: ' + e.message); }
@@ -108,6 +110,39 @@ async function renderOnboardingSummary() {
 }
 
 function dateKey(d = new Date()) { const x = new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); }
+
+async function renderDailyAffirmation() {
+  const el = document.getElementById('dailyAffirmation');
+  if (!el) return;
+  const dk = dateKey();
+  const { dailyAffirmation = null, userProfile = {} } = await chrome.storage.local.get(['dailyAffirmation','userProfile']);
+  if (dailyAffirmation && dailyAffirmation.dateKey === dk && dailyAffirmation.text) {
+    el.textContent = dailyAffirmation.text;
+    return;
+  }
+  // try AI; fallback to local rotation
+  let text = '';
+  try {
+    text = await requestDailyAffirmation({ workPatterns: userProfile.workPatterns, healthConcerns: userProfile.healthConcerns });
+  } catch {}
+  const EMOJIS = ['🌿','😊','☕️','🌸','🍀','✨','💙','🕊️'];
+  const FALLBACKS = ['숨 고르기','잠시 쉼','눈 쉬어요','목 이완','어깨 풀자','물 한잔','미소 한 번','천천히 호흡'];
+  if (!text || typeof text !== 'string') {
+    const idx = new Date().getDate() % FALLBACKS.length;
+    const e = EMOJIS[new Date().getDate() % EMOJIS.length];
+    const body = FALLBACKS[idx].slice(0, 8).trim();
+    text = `${body} ${e}`;
+  } else {
+    // enforce 8 chars + emoji if missing
+    const hasEmoji = /\p{Emoji}/u.test(text);
+    const e = EMOJIS[new Date().getDate() % EMOJIS.length];
+    text = `${text.slice(0,8).trim()} ${hasEmoji ? '' : e}`.trim();
+  }
+  el.textContent = text;
+  await chrome.storage.local.set({ dailyAffirmation: { dateKey: dk, text } });
+}
+
+// moved up
 
 async function onToggleOnboardingChip(el) {
   // limit: max 2 edits per day across both categories
