@@ -76,17 +76,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
   if (message.type === 'breet:requestNewBreaks') {
-    const { breakMinutes, excludeIds = [] } = message.payload || {};
+    const { breakMinutes, excludeIds = [], sessionId = null } = message.payload || {};
     (async () => {
       try {
+        const metaKey = sessionId ? `prebreakMeta_${sessionId}` : 'prebreakMeta';
+        const { [metaKey]: metaFallback = null } = await chrome.storage.local.get(metaKey);
         const { prebreakMeta = { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes || 5 } } = await chrome.storage.local.get('prebreakMeta');
-        if ((prebreakMeta.otherUsed || 0) >= (prebreakMeta.maxOther || 4)) {
+        const preMeta = metaFallback || prebreakMeta || { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes || 5 };
+        if ((preMeta.otherUsed || 0) >= (preMeta.maxOther || 4)) {
           sendResponse({ ok: false, error: 'limit_reached' });
           return;
         }
-        const bm = breakMinutes ?? prebreakMeta.breakMinutes ?? 5;
+        const bm = breakMinutes ?? preMeta.breakMinutes ?? 5;
         await recommendNextBreakWithAI(bm, excludeIds);
-        await chrome.storage.local.set({ prebreakMeta: { ...prebreakMeta, otherUsed: (prebreakMeta.otherUsed || 0) + 1, breakMinutes: bm } });
+        // Copy generic candidates into session-namespaced keys if sessionId provided
+        if (sessionId) {
+          const { pendingBreakCandidates = [], pendingBreak = null } = await chrome.storage.local.get(['pendingBreakCandidates','pendingBreak']);
+          const ns = {}; ns[`pendingBreakCandidates_${sessionId}`] = pendingBreakCandidates; ns[`pendingBreak_${sessionId}`] = pendingBreak;
+          await chrome.storage.local.set(ns);
+        }
+        const newMeta = { ...preMeta, otherUsed: (preMeta.otherUsed || 0) + 1, breakMinutes: bm };
+        const toSet = {}; toSet[metaKey] = newMeta; toSet['prebreakMeta'] = newMeta; await chrome.storage.local.set(toSet);
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({ ok: false, error: String(e) });
@@ -277,15 +287,20 @@ async function playSound(path) {
 
 async function openPreBreakSelection(payload) {
   // 이전 후보/선택값 초기화 후, 현재 모드의 분수로 새 후보 생성
+  const sessionId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
   await chrome.storage.local.set({ pendingBreak: null, pendingBreakCandidates: [] });
   const rec = await recommendNextBreakWithAI(payload?.breakMinutes);
+  // 세션별 네임스페이스에 복사 저장
+  const { pendingBreakCandidates = [] } = await chrome.storage.local.get('pendingBreakCandidates');
+  const ns = {}; ns[`pendingBreak_${sessionId}`] = rec; ns[`pendingBreakCandidates_${sessionId}`] = pendingBreakCandidates; ns[`prebreakMeta_${sessionId}`] = { otherUsed: 0, maxOther: 4, breakMinutes: payload?.breakMinutes || 5 };
+  await chrome.storage.local.set(ns);
   await chrome.storage.local.set({
     prebreakPayload: payload,
     prebreakMeta: { otherUsed: 0, maxOther: 4, breakMinutes: payload?.breakMinutes || 5 },
     pendingBreak: rec,
     [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: payload?.breakMinutes || 5 }
   });
-  const url = chrome.runtime.getURL('pages/break-selection.html');
+  const url = chrome.runtime.getURL(`pages/break-selection.html?sid=${sessionId}`);
   chrome.windows.create({ url, type: 'popup', width: 450, height: 500 });
 }
 
