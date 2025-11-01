@@ -69,14 +69,6 @@ async function renderOnboardingSummary() {
     card.classList.add('hidden');
     return;
   }
-  // Routine
-  const r = userProfile.routine || { type: 'pomodoro', workDuration: 25, breakDuration: 5 };
-  const routineStr = `루틴: ${r.type} (${r.workDuration}/${r.breakDuration})`;
-  document.getElementById('onbRoutine').textContent = routineStr;
-  // Schedule
-  const s = userProfile.schedule || { startTime: '09:00', endTime: '18:00', includeWeekends: false };
-  const schStr = `알림 시간대: ${s.startTime} ~ ${s.endTime} · ${s.includeWeekends ? '주말 포함' : '주말 제외'}`;
-  document.getElementById('onbSchedule').textContent = schStr;
   // Chips helper
   const chip = (txt) => {
     const el = document.createElement('span');
