@@ -375,9 +375,11 @@ async function renderDaySummary() {
     return `${w||'-'}/${r}`;
   })();
   const t = new Date(last.workEndTs || (new Date(last.timestamp).getTime() - (last.duration||0)*60000));
-  const hh = String(t.getHours()).padStart(2,'0');
+  let h = t.getHours();
   const mm = String(t.getMinutes()).padStart(2,'0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if (h === 0) h = 12; const hh12 = String(h).padStart(2,'0');
   const action = last.breakName || last.breakType || '';
-  el.textContent = `${label} 실행 · ${action} · ${hh}:${mm}`;
+  el.textContent = `${label} 실행 · (${action}) · ${ampm} ${hh12}:${mm}`;
 }
 
