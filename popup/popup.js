@@ -35,8 +35,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.addEventListener('click', () => {
       selectedMode = btn.dataset.mode;
       setActiveModeButton(selectedMode);
-      // Click-to-start: selecting a mode immediately starts the timer
-      onStart();
+      // Instead of immediate start, open pre-break selection first
+      const preset = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
+      chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload: { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest } });
     });
   });
 
@@ -47,7 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Clear highlight and run a 1min/1min cycle under same rules
     selectedMode = 'quick';
     setActiveModeButton(null);
-    onStart({ work: 1, rest: 1 }, 'quick');
+    chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload: { mode: 'quick', workMinutes: 1, breakMinutes: 1 } });
   });
   document.getElementById('addTodo').addEventListener('click', onAddTodo);
   loadTodos();

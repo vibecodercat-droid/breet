@@ -34,6 +34,13 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || !message.type) return;
+  if (message.type === 'breet:prebreakSelect') {
+    const { mode, workMinutes, breakMinutes } = message.payload || {};
+    openPreBreakSelection({ mode, workMinutes, breakMinutes })
+      .then(() => sendResponse({ ok: true }))
+      .catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
   if (message.type === 'breet:startTimer') {
     const { mode, workMinutes, breakMinutes } = message.payload || {};
     startWorkTimer(mode, workMinutes, breakMinutes).then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
@@ -166,11 +173,30 @@ function createBreakNotification() {
   });
 }
 
-chrome.notifications.onButtonClicked.addListener((notifId, btnIdx) => {
-  if (!notifId.startsWith('breet:break:')) return;
-  if (btnIdx === 0) {
-    // Start overlay via a new tab pointing to overlay page.
-    chrome.tabs.create({ url: chrome.runtime.getURL('content/break-overlay.html') });
+chrome.notifications.onButtonClicked.addListener(async (notifId, btnIdx) => {
+  if (notifId.startsWith('breet:break:')) {
+    if (btnIdx === 0) {
+      // Start overlay via a new tab pointing to overlay page.
+      chrome.tabs.create({ url: chrome.runtime.getURL('content/break-overlay.html') });
+    }
+    return;
+  }
+  if (notifId.startsWith('breet:prebreak:')) {
+    const { pendingBreakCandidates = [], pendingBreak = null, prebreakPayload = null } = await chrome.storage.local.get(['pendingBreakCandidates','pendingBreak','prebreakPayload']);
+    if (btnIdx === 0 && prebreakPayload) {
+      // confirm and start work timer
+      await chrome.storage.local.set({ pendingBreak });
+      await startWorkTimer(prebreakPayload.mode, prebreakPayload.workMinutes, prebreakPayload.breakMinutes);
+    } else if (btnIdx === 1 && pendingBreakCandidates.length) {
+      // rotate suggestion
+      const idx = Math.max(0, pendingBreakCandidates.findIndex(c => c?.id === pendingBreak?.id));
+      const next = pendingBreakCandidates[(idx + 1) % pendingBreakCandidates.length];
+      await chrome.storage.local.set({ pendingBreak: next });
+      const icon = chrome.runtime.getURL('icons/icon48.png');
+      chrome.notifications.create(`breet:prebreak:${Date.now()}`, {
+        type: 'basic', iconUrl: icon, title: '예정 휴식 선택', message: `${next.name} · ${next.duration}분`, buttons: [ { title: '이걸로 시작' }, { title: '다른 제안' } ], priority: 0
+      });
+    }
   }
 });
 
@@ -189,5 +215,17 @@ function playSound(path) {
     audio.volume = 0.5;
     audio.play().catch(() => {});
   } catch {}
+}
+
+async function openPreBreakSelection(payload) {
+  // pre-compute recommendation and allow user to confirm/rotate before starting work
+  const rec = await recommendNextBreakWithAI();
+  await chrome.storage.local.set({ prebreakPayload: payload, pendingBreak: rec });
+  const icon = chrome.runtime.getURL('icons/icon48.png');
+  const detail = rec?.name ? `${rec.name} · ${rec.duration}분` : '추천 브레이크';
+  chrome.notifications.create(`breet:prebreak:${Date.now()}`, {
+    type: 'basic', iconUrl: icon, title: '예정 휴식 선택', message: detail,
+    buttons: [ { title: '이걸로 시작' }, { title: '다른 제안' } ], priority: 0
+  });
 }
 
