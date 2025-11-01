@@ -115,5 +115,8 @@ async function loadNewPage() {
 
 function showError(message) {
   const list = document.getElementById('list');
-  if (list) list.innerHTML = `<div class="text-center py-8"><div class="text-red-500 mb-3">${message}</div><button onclick="location.reload()" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">다시 시도</button></div>`;
+  if (!list) return;
+  list.innerHTML = `<div class="text-center py-8"><div class="text-red-500 mb-3">${message}</div><button id="retryBtn" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">다시 시도</button></div>`;
+  const btn = document.getElementById('retryBtn');
+  if (btn) btn.addEventListener('click', () => location.reload());
 }
