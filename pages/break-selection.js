@@ -17,13 +17,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function initialize() {
   try {
     const keyCands = sessionId ? `pendingBreakCandidates_${sessionId}` : 'pendingBreakCandidates';
-    const { [keyCands]: pendingBreakCandidates = [], prebreakPayload = null, allBreakCandidates = [] } = await chrome.storage.local.get([keyCands,'prebreakPayload','allBreakCandidates']);
+    const keyAll = sessionId ? `allBreakCandidates_${sessionId}` : 'allBreakCandidates';
+    const { [keyCands]: pendingBreakCandidates = [], prebreakPayload = null, [keyAll]: persisted = [] } = await chrome.storage.local.get([keyCands,'prebreakPayload', keyAll]);
     payload = prebreakPayload;
-    if (Array.isArray(allBreakCandidates) && allBreakCandidates.length >= 3) {
-      allCandidates = allBreakCandidates; currentPage = 0; render(); return;
+    if (Array.isArray(persisted) && persisted.length >= 3) {
+      allCandidates = persisted; currentPage = 0; render(); return;
     }
     if (pendingBreakCandidates && pendingBreakCandidates.length >= 3) {
-      allCandidates = pendingBreakCandidates.slice(0,3); currentPage = 0; await chrome.storage.local.set({ allBreakCandidates: allCandidates }); render(); return;
+      allCandidates = pendingBreakCandidates.slice(0,3); currentPage = 0; const setObj={}; setObj[keyAll]=allCandidates; await chrome.storage.local.set(setObj); render(); return;
     }
     await loadNewPage();
   } catch (e) {
@@ -83,7 +84,7 @@ async function onConfirm() {
   if (sessionId) { const ns={}; ns[`pendingBreak_${sessionId}`]=sel; await chrome.storage.local.set(ns); }
   await chrome.storage.local.set({ pendingBreak: sel });
   if (payload) chrome.runtime.sendMessage({ type: 'breet:startTimer', payload });
-  await chrome.storage.local.remove('allBreakCandidates');
+  if (sessionId) { const rm={}; rm[`allBreakCandidates_${sessionId}`]=null; await chrome.storage.local.remove(Object.keys(rm)); }
   window.close();
 }
 
@@ -112,10 +113,11 @@ async function loadNewPage() {
       });
     });
     const candKey = sessionId ? `pendingBreakCandidates_${sessionId}` : 'pendingBreakCandidates';
+    const allKey = sessionId ? `allBreakCandidates_${sessionId}` : 'allBreakCandidates';
     const { [candKey]: pendingBreakCandidates = [] } = await chrome.storage.local.get(candKey);
     if (!Array.isArray(pendingBreakCandidates) || pendingBreakCandidates.length < 3) throw new Error('Not enough new candidates');
     allCandidates = [...allCandidates, ...pendingBreakCandidates.slice(0,3)];
-    await chrome.storage.local.set({ allBreakCandidates: allCandidates });
+    const so={}; so[allKey]=allCandidates; await chrome.storage.local.set(so);
     currentPage++;
     render();
   } catch (e) {
