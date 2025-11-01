@@ -1,5 +1,6 @@
 let allCandidates = [];
 let currentPage = 0;
+let selectedIndex = 0; // absolute index in allCandidates
 const maxPages = 5;
 let payload = null;
 let isLoading = false;
@@ -34,11 +35,14 @@ function render(){
   if (!pageItems.length) {
     box.innerHTML = '<div class="text-center text-gray-500 py-8">추천을 불러오는 중...</div>';
   } else {
-    pageItems.forEach((c) => {
+    pageItems.forEach((c, i) => {
       const div = document.createElement('div');
-      div.className = 'p-4 bg-white rounded-lg shadow-sm border-2 border-blue-500 bg-blue-50';
+      const isSel = (startIdx + i) === selectedIndex;
+      div.className = 'p-4 rounded-lg shadow-sm cursor-pointer transition-colors ' + (isSel ? 'border-2 border-blue-500 bg-blue-50' : 'bg-white');
+      div.addEventListener('click', () => { selectedIndex = startIdx + i; render(); });
       const left = document.createElement('div');
-      left.innerHTML = `<div class=\"font-semibold text-gray-900 text-base mb-1\">${c?.name||''}</div>` + (c?.rationale ? `<div class=\"text-sm text-gray-600 mt-2\">${c.rationale}</div>` : '');
+      const hint = c?.hint || '';
+      left.innerHTML = `<div class=\"font-semibold text-gray-900 text-base mb-1\">${c?.name||''}</div>` + (hint ? `<div class=\"text-sm text-gray-600 mt-2\">${hint}</div>` : '');
       div.appendChild(left);
       box.appendChild(div);
     });
@@ -72,7 +76,8 @@ function updateButtons() {
 async function onConfirm() {
   const startIdx = currentPage * 3; const pageItems = allCandidates.slice(startIdx, startIdx + 3);
   if (!pageItems.length) return;
-  const sel = pageItems[0];
+  const relativeIdx = Math.max(0, Math.min(2, selectedIndex - startIdx));
+  const sel = pageItems[relativeIdx];
   await chrome.storage.local.set({ pendingBreak: sel });
   if (payload) chrome.runtime.sendMessage({ type: 'breet:startTimer', payload });
   await chrome.storage.local.remove('allBreakCandidates');

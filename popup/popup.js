@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       selectedMode = btn.dataset.mode;
       setActiveModeButton(selectedMode);
       setControlsEnabled(true);
+      // 타이머 모드 클릭 시 즉시 예정 휴식 선택 창 띄우기
+      const preset = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
+      chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload: { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest } });
     });
   });
 
