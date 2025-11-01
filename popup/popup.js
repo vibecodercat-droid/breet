@@ -35,9 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.addEventListener('click', () => {
       selectedMode = btn.dataset.mode;
       setActiveModeButton(selectedMode);
-      // Instead of immediate start, open pre-break selection first
-      const preset = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
-      chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload: { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest } });
+      setControlsEnabled(true);
     });
   });
 
@@ -88,6 +86,13 @@ function setActiveModeButton(mode) {
       btn.classList.add('bg-blue-500','text-white');
     }
   }
+}
+
+function setControlsEnabled(enabled) {
+  const start = document.getElementById('startBtn');
+  const stop = document.getElementById('stopBtn');
+  if (start) start.disabled = !enabled;
+  if (stop) stop.disabled = !enabled;
 }
 
 async function renderOnboardingSummary() {
@@ -196,13 +201,19 @@ async function onToggleOnboardingChip(el) {
 
 async function onStart(override, modeLabel) {
   const { sessionState } = await chrome.storage.local.get('sessionState');
-  if (sessionState?.mode === 'paused') {
+  if (sessionState?.phase === 'paused') {
     chrome.runtime.sendMessage({ type: 'breet:resumeTimer' });
     return;
   }
-  const preset = override || (MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro);
-  const modeToUse = modeLabel || selectedMode;
-  chrome.runtime.sendMessage({ type: 'breet:startTimer', payload: { mode: modeToUse, workMinutes: preset.work, breakMinutes: preset.rest } });
+  // Require a mode selection before enabling start
+  const mode = modeLabel || selectedMode;
+  if (!mode || !MODE_PRESETS[mode]) {
+    alert('타이머 모드를 먼저 선택하세요. (25/5, 50/10, 15/3, 1/1)');
+    return;
+  }
+  const preset = override || MODE_PRESETS[mode];
+  // Start flow via pre-break selection popup
+  chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload: { mode, workMinutes: preset.work, breakMinutes: preset.rest } });
 }
 
 function onPause() {
@@ -213,14 +224,25 @@ async function refreshCountdown() {
   const el = document.getElementById('countdown');
   if (!el) return;
   const { sessionState } = await chrome.storage.local.get('sessionState');
-  if (!sessionState || !sessionState.startTs || sessionState.mode === 'idle') {
+  if (!sessionState || !sessionState.startTs || sessionState.phase === 'idle' || sessionState.phase === undefined) {
     el.textContent = '--:--';
-    setActiveModeButton(null);
+    setControlsEnabled(!!selectedMode);
     return;
   }
-  setActiveModeButton(sessionState.mode);
-  const phaseMinutes = sessionState.mode === 'break' ? sessionState.breakDuration : sessionState.workDuration;
-  const endTs = sessionState.startTs + phaseMinutes * 60 * 1000;
+  if (sessionState.phase === 'paused') {
+    setControlsEnabled(true);
+    const remain = Math.max(0, sessionState.remainingMs || 0);
+    const mm = String(Math.floor(remain / 60000)).padStart(2, '0');
+    const ss = String(Math.floor((remain % 60000) / 1000)).padStart(2, '0');
+    el.textContent = `${mm}:${ss}`;
+    return;
+  }
+  // running
+  const start = document.getElementById('startBtn');
+  const stop = document.getElementById('stopBtn');
+  if (start) start.disabled = true;
+  if (stop) stop.disabled = false;
+  const endTs = sessionState.endTs || (sessionState.startTs + ((sessionState.phase === 'break' ? sessionState.breakDuration : sessionState.workDuration) * 60 * 1000));
   const remain = Math.max(0, endTs - Date.now());
   const mm = String(Math.floor(remain / 60000)).padStart(2, '0');
   const ss = String(Math.floor((remain % 60000) / 1000)).padStart(2, '0');
