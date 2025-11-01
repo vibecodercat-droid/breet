@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch {}
 
   await refreshAuthUI();
+  await renderOnboardingSummary();
 
   document.getElementById('loginBtn').addEventListener('click', async () => {
     try { await loginWithGoogle(); } catch (e) { alert('로그인 실패: ' + e.message); }
@@ -59,6 +60,39 @@ async function refreshAuthUI() {
     loginBtn.classList.remove('hidden');
     logoutBtn.classList.add('hidden');
   }
+}
+
+async function renderOnboardingSummary() {
+  const { userProfile = null } = await chrome.storage.local.get('userProfile');
+  const card = document.getElementById('onboardingCard');
+  if (!userProfile || !userProfile.onboardingCompleted) {
+    card.classList.add('hidden');
+    return;
+  }
+  // Routine
+  const r = userProfile.routine || { type: 'pomodoro', workDuration: 25, breakDuration: 5 };
+  const routineStr = `루틴: ${r.type} (${r.workDuration}/${r.breakDuration})`;
+  document.getElementById('onbRoutine').textContent = routineStr;
+  // Schedule
+  const s = userProfile.schedule || { startTime: '09:00', endTime: '18:00', includeWeekends: false };
+  const schStr = `알림 시간대: ${s.startTime} ~ ${s.endTime} · ${s.includeWeekends ? '주말 포함' : '주말 제외'}`;
+  document.getElementById('onbSchedule').textContent = schStr;
+  // Chips helper
+  const chip = (txt) => {
+    const el = document.createElement('span');
+    el.className = 'px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700';
+    el.textContent = txt;
+    return el;
+  };
+  // Work patterns
+  const workBox = document.getElementById('onbWork');
+  workBox.innerHTML = '';
+  (userProfile.workPatterns || []).forEach((w) => workBox.appendChild(chip(w)));
+  // Health concerns
+  const healthBox = document.getElementById('onbHealth');
+  healthBox.innerHTML = '';
+  (userProfile.healthConcerns || []).forEach((h) => healthBox.appendChild(chip(h)));
+  card.classList.remove('hidden');
 }
 
 function onStart() {
