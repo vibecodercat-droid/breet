@@ -39,6 +39,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     startWorkTimer(mode, workMinutes, breakMinutes).then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  if (message.type === 'breet:pauseTimer') {
+    pauseTimer().then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
+  if (message.type === 'breet:resumeTimer') {
+    resumeTimer().then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
   if (message.type === 'breet:stopTimer') {
     stopAllTimers().then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
@@ -46,15 +54,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function startWorkTimer(mode, workMinutes = 25, breakMinutes = 5) {
-  const startTs = Date.now();
-  const when = Date.now() + workMinutes * 60 * 1000;
+  // If paused, resume with remaining time
+  const { sessionState } = await chrome.storage.local.get('sessionState');
+  const pausedRemain = sessionState?.mode === 'paused' ? (sessionState.pausedRemainMs || 0) : 0;
+  const now = Date.now();
+  const startTs = now;
+  const when = pausedRemain > 0 ? now + pausedRemain : now + workMinutes * 60 * 1000;
   await chrome.alarms.clearAll();
   await chrome.alarms.create(`breet:work:end:${startTs}`, { when });
   await chrome.storage.local.set({
     [STORAGE_KEYS.SESSION]: {
-      mode: mode || 'pomodoro',
+      mode: mode || sessionState?.mode || 'pomodoro',
       startTs,
-      workDuration: workMinutes,
+      workDuration: pausedRemain > 0 ? Math.ceil(pausedRemain / 60000) : workMinutes,
       breakDuration: breakMinutes,
     }
   });
@@ -69,6 +81,29 @@ async function stopAllTimers() {
       workDuration: 25,
       breakDuration: 5,
     }
+  });
+}
+
+async function pauseTimer() {
+  const { sessionState } = await chrome.storage.local.get('sessionState');
+  if (!sessionState?.startTs || sessionState.mode === 'idle') return;
+  const endTs = sessionState.startTs + sessionState.workDuration * 60 * 1000;
+  const remain = Math.max(0, endTs - Date.now());
+  await chrome.alarms.clearAll();
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.SESSION]: { ...sessionState, mode: 'paused', pausedRemainMs: remain }
+  });
+}
+
+async function resumeTimer() {
+  const { sessionState } = await chrome.storage.local.get('sessionState');
+  if (sessionState?.mode !== 'paused') return;
+  const remain = sessionState.pausedRemainMs || 0;
+  const now = Date.now();
+  await chrome.alarms.clearAll();
+  await chrome.alarms.create(`breet:work:end:${now}`, { when: now + remain });
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.SESSION]: { ...sessionState, mode: sessionState.modeBeforePause || 'pomodoro', startTs: now }
   });
 }
 

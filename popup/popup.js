@@ -41,7 +41,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.getElementById('startBtn').addEventListener('click', onStart);
-  document.getElementById('stopBtn').addEventListener('click', onStop);
+  document.getElementById('stopBtn').addEventListener('click', onPause);
+  const quick = document.getElementById('quick11');
+  if (quick) quick.addEventListener('click', () => onStart({ work: 1, rest: 1 }));
   document.getElementById('addTodo').addEventListener('click', onAddTodo);
   loadTodos();
   refreshCountdown();
@@ -186,16 +188,18 @@ async function onToggleOnboardingChip(el) {
   await chrome.storage.local.set({ userProfile: updated, quickEditMeta: meta, quickEdits: log });
 }
 
-function onStart() {
-  const preset = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
-  chrome.runtime.sendMessage({
-    type: 'breet:startTimer',
-    payload: { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest }
-  });
+async function onStart(override) {
+  const { sessionState } = await chrome.storage.local.get('sessionState');
+  if (sessionState?.mode === 'paused') {
+    chrome.runtime.sendMessage({ type: 'breet:resumeTimer' });
+    return;
+  }
+  const preset = override || (MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro);
+  chrome.runtime.sendMessage({ type: 'breet:startTimer', payload: { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest } });
 }
 
-function onStop() {
-  chrome.runtime.sendMessage({ type: 'breet:stopTimer' });
+function onPause() {
+  chrome.runtime.sendMessage({ type: 'breet:pauseTimer' });
 }
 
 async function refreshCountdown() {
