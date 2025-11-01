@@ -72,19 +72,60 @@ async function renderOnboardingSummary() {
   // Chips helper
   const chip = (txt) => {
     const el = document.createElement('span');
-    el.className = 'px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700';
+    el.className = 'px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700 border border-transparent cursor-pointer select-none';
     el.textContent = txt;
     return el;
   };
   // Work patterns
   const workBox = document.getElementById('onbWork');
   workBox.innerHTML = '';
-  (userProfile.workPatterns || []).forEach((w) => workBox.appendChild(chip(w)));
+  const workAll = ['coding','writing','design','meeting'];
+  const workSelected = new Set(userProfile.workPatterns || []);
+  workAll.forEach((w) => {
+    const el = chip(w);
+    if (workSelected.has(w)) el.classList.add('bg-blue-50','text-blue-700','border-blue-300');
+    el.dataset.category = 'workPatterns';
+    el.dataset.value = w;
+    el.addEventListener('click', () => onToggleOnboardingChip(el));
+    workBox.appendChild(el);
+  });
   // Health concerns
   const healthBox = document.getElementById('onbHealth');
   healthBox.innerHTML = '';
-  (userProfile.healthConcerns || []).forEach((h) => healthBox.appendChild(chip(h)));
+  const healthAll = ['eyeStrain','neckPain','backPain','stress'];
+  const healthSelected = new Set(userProfile.healthConcerns || []);
+  healthAll.forEach((h) => {
+    const el = chip(h);
+    if (healthSelected.has(h)) el.classList.add('bg-blue-50','text-blue-700','border-blue-300');
+    el.dataset.category = 'healthConcerns';
+    el.dataset.value = h;
+    el.addEventListener('click', () => onToggleOnboardingChip(el));
+    healthBox.appendChild(el);
+  });
   card.classList.remove('hidden');
+}
+
+function dateKey(d = new Date()) { const x = new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); }
+
+async function onToggleOnboardingChip(el) {
+  // limit: max 2 edits per day across both categories
+  const dk = dateKey();
+  const { quickEditMeta = { dateKey: dk, edits: 0 }, userProfile = {} } = await chrome.storage.local.get(['quickEditMeta','userProfile']);
+  const meta = (quickEditMeta && quickEditMeta.dateKey === dk) ? quickEditMeta : { dateKey: dk, edits: 0 };
+  if (meta.edits >= 2) {
+    alert('오늘은 더 이상 변경할 수 없어요 (최대 2회).');
+    return;
+  }
+  const cat = el.dataset.category; const val = el.dataset.value;
+  const arr = new Set((userProfile[cat] || []));
+  if (arr.has(val)) { arr.delete(val); el.classList.remove('bg-blue-50','text-blue-700','border-blue-300'); }
+  else { arr.add(val); el.classList.add('bg-blue-50','text-blue-700','border-blue-300'); }
+  const updated = { ...(userProfile||{}) }; updated[cat] = Array.from(arr);
+  // log quick edit for AI context
+  const { quickEdits = [] } = await chrome.storage.local.get('quickEdits');
+  const log = [...quickEdits, { ts: Date.now(), category: cat, value: val, action: arr.has(val) ? 'add' : 'remove' }].slice(-50);
+  meta.edits += 1;
+  await chrome.storage.local.set({ userProfile: updated, quickEditMeta: meta, quickEdits: log });
 }
 
 function onStart() {
