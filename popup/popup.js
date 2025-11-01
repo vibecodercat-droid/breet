@@ -125,7 +125,7 @@ async function renderDailyAffirmation() {
   try {
     text = await requestDailyAffirmation({ workPatterns: userProfile.workPatterns, healthConcerns: userProfile.healthConcerns });
   } catch {}
-  const EMOJIS = ['🌿','😊','☕️','🌸','🍀','✨','💙','🕊️'];
+  const EMOJIS = ['🌿','😊','☕️','🩵','🍀','✨','💙','🕊️'];
   const FALLBACKS = ['쉬고 가요','숨 고르기','짧게 쉼','눈 쉬어요','목 이완해','어깨 풀자','물 한잔요','천천히 호흡'];
   if (!text || typeof text !== 'string') {
     const idx = new Date().getDate() % FALLBACKS.length;
