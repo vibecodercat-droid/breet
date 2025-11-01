@@ -7,6 +7,7 @@ const MODE_PRESETS = {
 };
 
 let selectedMode = 'pomodoro';
+let currentDay = new Date();
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Onboarding gate: if not completed, redirect to onboarding page
@@ -52,7 +53,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload: { mode: 'quick', workMinutes: 1, breakMinutes: 1 } });
   });
   document.getElementById('addTodo').addEventListener('click', onAddTodo);
+  const prevDayBtn = document.getElementById('prevDay');
+  const nextDayBtn = document.getElementById('nextDay');
+  if (prevDayBtn) prevDayBtn.addEventListener('click', () => { currentDay.setDate(currentDay.getDate()-1); renderDateHeader(); loadTodos(); renderDaySummary(); });
+  if (nextDayBtn) nextDayBtn.addEventListener('click', () => { currentDay.setDate(currentDay.getDate()+1); renderDateHeader(); loadTodos(); renderDaySummary(); });
+  renderDateHeader();
+  await migrateTodosIfNeeded();
   loadTodos();
+  renderDaySummary();
   refreshCountdown();
   setInterval(refreshCountdown, 1000);
 });
@@ -144,6 +152,8 @@ async function renderOnboardingSummary() {
 }
 
 function dateKey(d = new Date()) { const x = new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); }
+function formatKR(d = new Date()) { const y=String(d.getFullYear()).slice(2); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const wk=['일','월','화','수','목','금','토'][d.getDay()]; return `${y}.${m}.${dd} (${wk})`; }
+function renderDateHeader(){ const el=document.getElementById('dateTitle'); if (el) el.textContent = formatKR(currentDay); }
 
 async function renderDailyAffirmation() {
   const el = document.getElementById('dailyAffirmation');
@@ -253,7 +263,9 @@ async function refreshCountdown() {
 }
 
 async function loadTodos() {
-  const { todos = [] } = await chrome.storage.local.get('todos');
+  const dk = dateKey(currentDay);
+  const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
+  const todos = Array.isArray(todosByDate[dk]) ? todosByDate[dk] : [];
   const list = document.getElementById('todoList');
   list.innerHTML = '';
   todos.forEach((t) => list.appendChild(renderTodo(t)));
@@ -273,12 +285,17 @@ function renderTodo(todo) {
   if (todo.completed) span.className = 'line-through text-gray-500';
   left.appendChild(cb);
   left.appendChild(span);
+  const snooze = document.createElement('button');
+  snooze.className = 'text-xs text-gray-600 hover:text-blue-600';
+  snooze.textContent = '하루 미루기';
+  snooze.addEventListener('click', () => postponeTodo(todo.id));
   const del = document.createElement('button');
   del.className = 'text-xs text-gray-600 hover:text-red-600';
   del.textContent = '삭제';
   del.addEventListener('click', () => removeTodo(todo.id));
   li.appendChild(left);
-  li.appendChild(del);
+  const right = document.createElement('div'); right.className='flex items-center gap-2'; right.appendChild(snooze); right.appendChild(del);
+  li.appendChild(right);
   return li;
 }
 
@@ -286,29 +303,69 @@ async function onAddTodo() {
   const input = document.getElementById('todoInput');
   const text = (input.value || '').trim();
   if (!text) return;
-  const { todos = [] } = await chrome.storage.local.get('todos');
+  const dk = dateKey(currentDay);
+  const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
   const now = Date.now();
-  const next = [...todos, { id: now, text, completed: false, createdAt: now, updatedAt: now }];
-  await chrome.storage.local.set({ todos: next });
+  const list = Array.isArray(todosByDate[dk]) ? todosByDate[dk] : [];
+  const next = [...list, { id: now, text, completed: false, createdAt: now, updatedAt: now }];
+  todosByDate[dk] = next;
+  await chrome.storage.local.set({ todosByDate });
   input.value = '';
   loadTodos();
 }
 
 async function toggleTodo(id) {
-  const { todos = [] } = await chrome.storage.local.get('todos');
-  const next = todos.map((t) => {
+  const dk = dateKey(currentDay);
+  const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
+  const list = Array.isArray(todosByDate[dk]) ? todosByDate[dk] : [];
+  const next = list.map((t) => {
     if (t.id !== id) return t;
     const completed = !t.completed;
     return { ...t, completed, updatedAt: Date.now(), completedAt: completed ? Date.now() : null };
   });
-  await chrome.storage.local.set({ todos: next });
+  todosByDate[dk] = next; await chrome.storage.local.set({ todosByDate });
   loadTodos();
 }
 
 async function removeTodo(id) {
-  const { todos = [] } = await chrome.storage.local.get('todos');
-  const next = todos.filter((t) => t.id !== id);
-  await chrome.storage.local.set({ todos: next });
+  const dk = dateKey(currentDay);
+  const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
+  const list = Array.isArray(todosByDate[dk]) ? todosByDate[dk] : [];
+  const next = list.filter((t) => t.id !== id);
+  todosByDate[dk] = next; await chrome.storage.local.set({ todosByDate });
   loadTodos();
+}
+
+async function postponeTodo(id) {
+  const dk = dateKey(currentDay);
+  const nextDate = new Date(currentDay); nextDate.setDate(nextDate.getDate()+1); const dkNext = dateKey(nextDate);
+  const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
+  const list = Array.isArray(todosByDate[dk]) ? todosByDate[dk] : [];
+  const idx = list.findIndex(t => t.id === id); if (idx === -1) return;
+  const [item] = list.splice(idx,1); item.updatedAt = Date.now();
+  const dest = Array.isArray(todosByDate[dkNext]) ? todosByDate[dkNext] : [];
+  todosByDate[dk] = list; todosByDate[dkNext] = [...dest, item];
+  await chrome.storage.local.set({ todosByDate });
+  loadTodos();
+}
+
+async function migrateTodosIfNeeded() {
+  const { todos = null, todosByDate = null } = await chrome.storage.local.get(['todos','todosByDate']);
+  if (todos && !todosByDate) {
+    const dk = dateKey(new Date());
+    await chrome.storage.local.set({ todosByDate: { [dk]: todos } });
+    await chrome.storage.local.remove('todos');
+  }
+}
+
+async function renderDaySummary() {
+  const el = document.getElementById('daySummary'); if (!el) return;
+  const dk = dateKey(currentDay);
+  const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
+  const rows = breakHistory.filter(b => (new Date(b.timestamp)).toISOString().slice(0,10) === dk);
+  if (!rows.length) { el.textContent = '오늘 기록 없음'; return; }
+  const last = rows[rows.length - 1];
+  const work = last.workDuration ? `${last.workDuration}` : '-';
+  el.textContent = `${work}/${last.duration} 실행 · ${last.breakType}`;
 }
 

@@ -353,11 +353,13 @@ async function saveBreakHistory(completed, actualDuration) {
     const { sessionState } = await chrome.storage.local.get(STORAGE_KEYS.SESSION);
     if (!pendingBreak) return;
     const duration = Number(actualDuration) || sessionState?.breakDuration || 5;
+    const workDur = sessionState?.workDuration || null;
     const entry = {
       id: Date.now(),
       breakId: pendingBreak.id,
       breakType: pendingBreak.type,
       duration,
+      workDuration: workDur,
       completed: !!completed,
       timestamp: new Date().toISOString(),
       recommendationSource: pendingBreak.source || 'rule',
