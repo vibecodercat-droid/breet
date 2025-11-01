@@ -58,6 +58,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     stopAllTimers().then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  if (message.type === 'breet:requestNewBreaks') {
+    const { breakMinutes, excludeIds = [] } = message.payload || {};
+    recommendNextBreakWithAI(breakMinutes, excludeIds)
+      .then((top) => sendResponse({ ok: true, top }))
+      .catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
 });
 
 async function startWorkTimer(mode, workMinutes = 25, breakMinutes = 5) {
