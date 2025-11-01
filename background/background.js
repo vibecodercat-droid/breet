@@ -209,11 +209,23 @@ function notifyToast(title, message, durationMs = 10000) {
   setTimeout(() => chrome.notifications.clear(id), durationMs);
 }
 
-function playSound(path) {
+async function ensureOffscreen() {
+  const has = await chrome.offscreen.hasDocument?.();
+  if (has) return;
   try {
-    const audio = new Audio(chrome.runtime.getURL(path));
-    audio.volume = 0.5;
-    audio.play().catch(() => {});
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: [chrome.offscreen.Reason.AUDIO_PLAYBACK],
+      justification: 'Play short notification sounds when timers end.'
+    });
+  } catch {}
+}
+
+async function playSound(path) {
+  try {
+    await ensureOffscreen();
+    const url = chrome.runtime.getURL(path);
+    chrome.runtime.sendMessage({ type: 'offscreen:play', url, volume: 0.5 });
   } catch {}
 }
 
@@ -221,11 +233,7 @@ async function openPreBreakSelection(payload) {
   // pre-compute recommendation and allow user to confirm/rotate before starting work
   const rec = await recommendNextBreakWithAI();
   await chrome.storage.local.set({ prebreakPayload: payload, pendingBreak: rec });
-  const icon = chrome.runtime.getURL('icons/icon48.png');
-  const detail = rec?.name ? `${rec.name} · ${rec.duration}분` : '추천 브레이크';
-  chrome.notifications.create(`breet:prebreak:${Date.now()}`, {
-    type: 'basic', iconUrl: icon, title: '예정 휴식 선택', message: detail,
-    buttons: [ { title: '이걸로 시작' }, { title: '다른 제안' } ], priority: 0
-  });
+  const url = chrome.runtime.getURL('pages/break-selection.html');
+  chrome.tabs.create({ url });
 }
 
