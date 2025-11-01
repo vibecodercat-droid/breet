@@ -127,16 +127,19 @@ async function renderDailyAffirmation() {
   } catch {}
   const EMOJIS = ['🌿','😊','☕️','🩵','🍀','✨','💙','🕊️'];
   const FALLBACKS = ['쉬고 가요','숨 고르기','짧게 쉼','눈 쉬어요','목 이완해','어깨 풀자','물 한잔요','천천히 호흡'];
+  const MAX = 10, MIN = 5;
+  const ensureLen = (s) => {
+    const trimmed = (s || '').trim();
+    if (trimmed.length >= MIN) return trimmed.slice(0, MAX);
+    const alt = FALLBACKS[new Date().getDate() % FALLBACKS.length];
+    return alt.slice(0, MAX);
+  };
+  const e = EMOJIS[new Date().getDate() % EMOJIS.length];
   if (!text || typeof text !== 'string') {
-    const idx = new Date().getDate() % FALLBACKS.length;
-    const e = EMOJIS[new Date().getDate() % EMOJIS.length];
-    const body = FALLBACKS[idx].slice(0, 12).trim();
-    text = `${body} ${e}`;
+    text = `${ensureLen(FALLBACKS[new Date().getDate() % FALLBACKS.length])} ${e}`;
   } else {
-    // enforce 8 chars + emoji if missing
     const hasEmoji = /\p{Emoji}/u.test(text);
-    const e = EMOJIS[new Date().getDate() % EMOJIS.length];
-    text = `${text.slice(0,12).trim()} ${hasEmoji ? '' : e}`.trim();
+    text = `${ensureLen(text)} ${hasEmoji ? '' : e}`.trim();
   }
   el.textContent = text;
   await chrome.storage.local.set({ dailyAffirmation: { dateKey: dk, text } });
