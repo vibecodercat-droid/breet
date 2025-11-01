@@ -212,7 +212,8 @@ async function refreshCountdown() {
     return;
   }
   setActiveModeButton(sessionState.mode);
-  const endTs = sessionState.startTs + sessionState.workDuration * 60 * 1000;
+  const phaseMinutes = sessionState.mode === 'break' ? sessionState.breakDuration : sessionState.workDuration;
+  const endTs = sessionState.startTs + phaseMinutes * 60 * 1000;
   const remain = Math.max(0, endTs - Date.now());
   const mm = String(Math.floor(remain / 60000)).padStart(2, '0');
   const ss = String(Math.floor((remain % 60000) / 1000)).padStart(2, '0');

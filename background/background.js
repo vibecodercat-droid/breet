@@ -21,14 +21,12 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (!alarm || !alarm.name) return;
   if (alarm.name.startsWith('breet:work:end:')) {
-    shouldDelayNotification().then((delay) => {
-      if (delay) {
-        // Snooze 5 minutes
-        chrome.alarms.create(`breet:snooze:${Date.now()}`, { when: Date.now() + 5 * 60 * 1000 });
-      } else {
-        createBreakNotification();
-      }
-    });
+    // Work finished → toast notify and auto-start break timer
+    notifyToast('과업 시간이 끝났습니다!', '쉬는 시간을 시작합니다.');
+    startBreakTimer();
+  } else if (alarm.name.startsWith('breet:break:end:')) {
+    notifyToast('쉬는 시간이 끝났습니다!', '다시 집중을 시작해볼까요?');
+    stopAllTimers();
   }
 });
 
@@ -107,6 +105,23 @@ async function resumeTimer() {
   });
 }
 
+async function startBreakTimer() {
+  const { sessionState } = await chrome.storage.local.get('sessionState');
+  const breakMinutes = sessionState?.breakDuration || 5;
+  const startTs = Date.now();
+  const when = startTs + breakMinutes * 60 * 1000;
+  await chrome.alarms.clearAll();
+  await chrome.alarms.create(`breet:break:end:${startTs}`, { when });
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.SESSION]: {
+      mode: 'break',
+      startTs,
+      workDuration: sessionState?.workDuration || 25,
+      breakDuration: breakMinutes,
+    }
+  });
+}
+
 async function shouldDelayNotification() {
   const now = new Date();
   // Check idle state (user away) – if idle/locked, delay
@@ -156,4 +171,11 @@ chrome.notifications.onButtonClicked.addListener((notifId, btnIdx) => {
     chrome.tabs.create({ url: chrome.runtime.getURL('content/break-overlay.html') });
   }
 });
+
+function notifyToast(title, message) {
+  const icon = chrome.runtime.getURL('icons/icon48.png');
+  chrome.notifications.create(`breet:toast:${Date.now()}`, {
+    type: 'basic', iconUrl: icon, title, message, priority: 0
+  });
+}
 
