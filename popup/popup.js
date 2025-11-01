@@ -70,19 +70,20 @@ async function renderOnboardingSummary() {
     return;
   }
   // Chips helper
-  const chip = (txt) => {
+  const chip = (label) => {
     const el = document.createElement('span');
     el.className = 'px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700 border border-transparent cursor-pointer select-none';
-    el.textContent = txt;
+    el.textContent = label;
     return el;
   };
   // Work patterns
   const workBox = document.getElementById('onbWork');
   workBox.innerHTML = '';
   const workAll = ['coding','writing','design','meeting'];
+  const WORK_LABELS = { coding: '코딩', writing: '문서작성', design: '디자인', meeting: '미팅' };
   const workSelected = new Set(userProfile.workPatterns || []);
   workAll.forEach((w) => {
-    const el = chip(w);
+    const el = chip(WORK_LABELS[w] || w);
     if (workSelected.has(w)) el.classList.add('bg-blue-50','text-blue-700','border-blue-300');
     el.dataset.category = 'workPatterns';
     el.dataset.value = w;
@@ -93,9 +94,10 @@ async function renderOnboardingSummary() {
   const healthBox = document.getElementById('onbHealth');
   healthBox.innerHTML = '';
   const healthAll = ['eyeStrain','neckPain','backPain','stress'];
+  const HEALTH_LABELS = { eyeStrain: '눈 피로', neckPain: '목 통증', backPain: '허리 통증', stress: '스트레스' };
   const healthSelected = new Set(userProfile.healthConcerns || []);
   healthAll.forEach((h) => {
-    const el = chip(h);
+    const el = chip(HEALTH_LABELS[h] || h);
     if (healthSelected.has(h)) el.classList.add('bg-blue-50','text-blue-700','border-blue-300');
     el.dataset.category = 'healthConcerns';
     el.dataset.value = h;
