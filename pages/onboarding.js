@@ -11,16 +11,12 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   const form = e.currentTarget;
   const workPatterns = Array.from(form.querySelectorAll('input[name="workPatterns"]:checked')).map(i => i.value);
   const healthConcerns = Array.from(form.querySelectorAll('input[name="healthConcerns"]:checked')).map(i => i.value);
-  const routineType = form.querySelector('input[name="routineType"]:checked').value;
   const startTime = parseTimeHHmm(document.getElementById('startTime').value) || '09:00';
   const endTime = parseTimeHHmm(document.getElementById('endTime').value) || '18:00';
   const includeWeekends = !!document.getElementById('includeWeekends').checked;
 
-  const routineMap = {
-    pomodoro: { type: 'pomodoro', workDuration: 25, breakDuration: 5 },
-    long: { type: 'long', workDuration: 50, breakDuration: 10 },
-    short: { type: 'short', workDuration: 15, breakDuration: 3 },
-  };
+  // 루틴 설정 UI 제거 → 기본값을 사용(포모도로 25/5)
+  const defaultRoutine = { type: 'pomodoro', workDuration: 25, breakDuration: 5 };
 
   const userProfile = {
     onboardingCompleted: true,
@@ -28,7 +24,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
     workPatterns,
     healthConcerns,
     preferredBreakTypes: [],
-    routine: routineMap[routineType] || routineMap.pomodoro,
+    routine: defaultRoutine,
     schedule: { startTime, endTime, includeWeekends }
   };
 
