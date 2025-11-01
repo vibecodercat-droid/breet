@@ -291,7 +291,8 @@ function renderTodo(todo) {
   snooze.addEventListener('click', () => postponeTodo(todo.id));
   const del = document.createElement('button');
   del.className = 'text-xs text-gray-600 hover:text-red-600';
-  del.textContent = '삭제';
+  del.textContent = '✕';
+  del.setAttribute('aria-label','삭제');
   del.addEventListener('click', () => removeTodo(todo.id));
   li.appendChild(left);
   const right = document.createElement('div'); right.className='flex items-center gap-2'; right.appendChild(snooze); right.appendChild(del);
@@ -365,7 +366,18 @@ async function renderDaySummary() {
   const rows = breakHistory.filter(b => (new Date(b.timestamp)).toISOString().slice(0,10) === dk);
   if (!rows.length) { el.textContent = '오늘 기록 없음'; return; }
   const last = rows[rows.length - 1];
-  const work = last.workDuration ? `${last.workDuration}` : '-';
-  el.textContent = `${work}/${last.duration} 실행 · ${last.breakType}`;
+  const label = (() => {
+    const w = last.workDuration, r = last.duration;
+    if (w===25 && r===5) return '25/5';
+    if (w===50 && r===10) return '50/10';
+    if (w===15 && r===3) return '15/3';
+    if (w===1 && r===1) return '1/1';
+    return `${w||'-'}/${r}`;
+  })();
+  const t = new Date(last.workEndTs || (new Date(last.timestamp).getTime() - (last.duration||0)*60000));
+  const hh = String(t.getHours()).padStart(2,'0');
+  const mm = String(t.getMinutes()).padStart(2,'0');
+  const action = last.breakName || last.breakType || '';
+  el.textContent = `${label} 실행 · ${action} · ${hh}:${mm}`;
 }
 

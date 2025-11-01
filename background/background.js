@@ -354,14 +354,18 @@ async function saveBreakHistory(completed, actualDuration) {
     if (!pendingBreak) return;
     const duration = Number(actualDuration) || sessionState?.breakDuration || 5;
     const workDur = sessionState?.workDuration || null;
+    const finishedTs = Date.now();
+    const workEndTs = finishedTs - duration * 60 * 1000; // 추정: 브레이크 종료 시각에서 역산
     const entry = {
-      id: Date.now(),
+      id: finishedTs,
       breakId: pendingBreak.id,
       breakType: pendingBreak.type,
+      breakName: pendingBreak.name || null,
       duration,
       workDuration: workDur,
       completed: !!completed,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(finishedTs).toISOString(),
+      workEndTs: new Date(workEndTs).toISOString(),
       recommendationSource: pendingBreak.source || 'rule',
     };
     const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
