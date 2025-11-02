@@ -481,7 +481,7 @@ async function handleDailyRefresh() {
           }, 
           constraints: { 
             minChars: 10, 
-            maxChars: 25, 
+            maxChars: 30, 
             tone: 'warm', 
             witty: true, 
             suffixEmoji: true, 
