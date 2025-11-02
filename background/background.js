@@ -308,7 +308,7 @@ async function openPreBreakSelection(payload) {
     pendingBreak: rec,
     [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: payload?.breakMinutes || 5 }
   });
-  // 팝업 대신 메시지 전송하여 인라인 카드 펼침
+  // 팝업 대신 메시지 전송하여 인라인 카드 펼침 (세션 ID 포함)
   chrome.runtime.sendMessage({ type: 'breet:expandBreakSelection', payload: { ...payload, sessionId } }).catch(() => {});
 }
 

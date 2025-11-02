@@ -42,24 +42,61 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.querySelectorAll('.mode-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       selectedMode = btn.dataset.mode;
       setActiveModeButton(selectedMode);
       setControlsEnabled(true);
-      // 타이머 모드 클릭 시 즉시 예정 휴식 선택 창 띄우기
+      // 타이머 모드 클릭 시 즉시 인라인 카드로 휴식 추천 표시
       const preset = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
-      chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload: { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest } });
+      const payload = { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest };
+      // 백그라운드에 추천 요청 (완료 후 background에서 메시지로 카드 펼침 요청)
+      chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload }, async (response) => {
+        // 추천 완료 후 약간의 지연을 두고 카드 펼침 (storage 동기화 대기)
+        setTimeout(async () => {
+          const { prebreakPayload, sessionState } = await chrome.storage.local.get(['prebreakPayload', 'sessionState']);
+          if (prebreakPayload) {
+            // 세션 ID 찾기
+            const keys = await chrome.storage.local.get(null);
+            let foundSessionId = null;
+            for (const key in keys) {
+              if (key.startsWith('prebreakMeta_')) {
+                foundSessionId = key.replace('prebreakMeta_', '');
+                break;
+              }
+            }
+            await expandBreakSelectionCard({ ...prebreakPayload, sessionId: foundSessionId });
+          }
+        }, 200);
+      });
     });
   });
 
   document.getElementById('startBtn').addEventListener('click', onStart);
   document.getElementById('stopBtn').addEventListener('click', onPause);
   const quick = document.getElementById('quick11');
-  if (quick) quick.addEventListener('click', () => {
+  if (quick) quick.addEventListener('click', async () => {
     // Clear highlight and run a 1min/1min cycle under same rules
     selectedMode = 'quick';
     setActiveModeButton(null);
-    chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload: { mode: 'quick', workMinutes: 1, breakMinutes: 1 } });
+    const payload = { mode: 'quick', workMinutes: 1, breakMinutes: 1 };
+    chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload }, async () => {
+      // 추천 완료 후 약간의 지연을 두고 카드 펼침 (storage 동기화 대기)
+      setTimeout(async () => {
+        const { prebreakPayload, sessionState } = await chrome.storage.local.get(['prebreakPayload', 'sessionState']);
+        if (prebreakPayload) {
+          // 세션 ID 찾기
+          const keys = await chrome.storage.local.get(null);
+          let foundSessionId = null;
+          for (const key in keys) {
+            if (key.startsWith('prebreakMeta_')) {
+              foundSessionId = key.replace('prebreakMeta_', '');
+              break;
+            }
+          }
+          await expandBreakSelectionCard({ ...prebreakPayload, sessionId: foundSessionId });
+        }
+      }, 200);
+    });
   });
   document.getElementById('addTodo').addEventListener('click', onAddTodo);
   const prevDayBtn = document.getElementById('prevDay');
@@ -79,7 +116,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 메시지 리스너: background에서 카드 펼침 요청
   chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
     if (message.type === 'breet:expandBreakSelection') {
-      expandBreakSelectionCard(message.payload);
+      expandBreakSelectionCard(message.payload).then(() => {
+        if (_sendResponse) _sendResponse({ ok: true });
+      }).catch(() => {
+        if (_sendResponse) _sendResponse({ ok: false });
+      });
       return true;
     }
     return false;
@@ -480,11 +521,23 @@ async function expandBreakSelectionCard(payload) {
   if (payload) {
     currentBreakSessionId = payload.sessionId || null;
     breakSelectionPayload = payload;
+    // storage에도 저장 (세션 ID가 있는 경우)
+    if (payload.sessionId) {
+      await chrome.storage.local.set({ prebreakPayload: payload });
+    }
   } else {
     // 페이로드가 없으면 storage에서 가져오기
     const { prebreakPayload, sessionState } = await chrome.storage.local.get(['prebreakPayload', 'sessionState']);
     if (prebreakPayload) {
       breakSelectionPayload = prebreakPayload;
+      // 세션 ID 추출 (storage에서 가져온 경우 세션 ID를 찾아야 함)
+      const keys = await chrome.storage.local.get(null);
+      for (const key in keys) {
+        if (key.startsWith('prebreakMeta_')) {
+          currentBreakSessionId = key.replace('prebreakMeta_', '');
+          break;
+        }
+      }
     }
   }
   
