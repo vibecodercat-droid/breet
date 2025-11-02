@@ -264,6 +264,39 @@ async function renderDailyAffirmation() {
   await chrome.storage.local.set({ dailyAffirmation: { dateKey: dk, text } });
 }
 
+async function renderTimerDescription() {
+  const el = document.getElementById('timerDescription');
+  if (!el) return;
+  const dk = dateKey();
+  const { timerDescription = null, userProfile = {} } = await chrome.storage.local.get(['timerDescription','userProfile']);
+  if (timerDescription && timerDescription.dateKey === dk && timerDescription.text) {
+    el.textContent = timerDescription.text;
+    return;
+  }
+  // try AI; fallback to default
+  let text = '';
+  try {
+    text = await requestDailyAffirmation({ workPatterns: userProfile.workPatterns, healthConcerns: userProfile.healthConcerns });
+  } catch {}
+  const FALLBACK = '쉬면서 일해야 건강하고 행복 ☕';
+  const MAX = 25, MIN = 10;
+  const ensureLen = (s) => {
+    const trimmed = (s || '').trim();
+    if (trimmed.length >= MIN && trimmed.length <= MAX) return trimmed;
+    return FALLBACK;
+  };
+  if (!text || typeof text !== 'string') {
+    text = FALLBACK;
+  } else {
+    text = ensureLen(text);
+    if (text === FALLBACK && !/\p{Emoji}/u.test(text)) {
+      text = text.replace(/\s*$/, ' ☕');
+    }
+  }
+  el.textContent = text;
+  await chrome.storage.local.set({ timerDescription: { dateKey: dk, text } });
+}
+
 // moved up
 
 async function onToggleOnboardingChip(el) {
