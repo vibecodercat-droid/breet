@@ -7,28 +7,47 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
   </head>
   <body class="bg-gray-50 text-gray-800 font-sans">
-    <main class="max-w-2xl mx-auto p-6 space-y-4">
+    <main class="max-w-4xl mx-auto p-6 space-y-4">
       <h1 class="text-xl font-semibold text-blue-600">통계</h1>
+      
+      <!-- 일별 통계 (숫자) -->
       <section class="bg-white rounded-lg shadow-sm p-4 space-y-4">
-        <h2 class="text-base font-semibold mb-2">세션 완료 기준</h2>
-        <div class="grid grid-cols-3 gap-4">
-          <div><div class="text-sm text-gray-500">오늘 완료</div><div id="sessionDone" class="text-2xl font-semibold">0</div></div>
-          <div><div class="text-sm text-gray-500">오늘 제안</div><div id="sessionSuggested" class="text-2xl font-semibold">0</div></div>
-          <div><div class="text-sm text-gray-500">완료율</div><div id="sessionRate" class="text-2xl font-semibold">0%</div></div>
+        <h2 class="text-base font-semibold mb-2">일별 통계</h2>
+        
+        <!-- 세션 완료 기준 -->
+        <div class="border-b pb-3 mb-3">
+          <h3 class="text-sm font-medium text-gray-700 mb-2">세션 완료 기준</h3>
+          <div class="grid grid-cols-3 gap-4">
+            <div><div class="text-sm text-gray-500">오늘 완료</div><div id="sessionDone" class="text-2xl font-semibold">0</div></div>
+            <div><div class="text-sm text-gray-500">오늘 쉼 횟수</div><div id="sessionCount" class="text-2xl font-semibold">0</div></div>
+            <div><div class="text-sm text-gray-500">완료율</div><div id="sessionRate" class="text-2xl font-semibold">0%</div></div>
+          </div>
+        </div>
+        
+        <!-- 투두리스트 기준 -->
+        <div>
+          <h3 class="text-sm font-medium text-gray-700 mb-2">투두리스트 기준</h3>
+          <div class="grid grid-cols-3 gap-4">
+            <div><div class="text-sm text-gray-500">오늘 완료</div><div id="todoDone" class="text-2xl font-semibold">0</div></div>
+            <div><div class="text-sm text-gray-500">오늘 전체</div><div id="todoTotal" class="text-2xl font-semibold">0</div></div>
+            <div><div class="text-sm text-gray-500">완료율</div><div id="todoRate" class="text-2xl font-semibold">0%</div></div>
+          </div>
         </div>
       </section>
-      <section class="bg-white rounded-lg shadow-sm p-4 space-y-4">
-        <h2 class="text-base font-semibold mb-2">투두리스트 기준</h2>
-        <div class="grid grid-cols-3 gap-4">
-          <div><div class="text-sm text-gray-500">오늘 완료</div><div id="todoDone" class="text-2xl font-semibold">0</div></div>
-          <div><div class="text-sm text-gray-500">오늘 전체</div><div id="todoTotal" class="text-2xl font-semibold">0</div></div>
-          <div><div class="text-sm text-gray-500">완료율</div><div id="todoRate" class="text-2xl font-semibold">0%</div></div>
-        </div>
-      </section>
+      
+      <!-- 주간 막대그래프 -->
       <section class="bg-white rounded-lg shadow-sm p-4">
         <h2 class="text-base font-semibold mb-2">주간 완료율</h2>
-        <canvas id="weeklyChart" width="600" height="200"></canvas>
+        <canvas id="weeklyChart" width="600" height="250"></canvas>
       </section>
+      
+      <!-- 세션 출석 캘린더 -->
+      <section class="bg-white rounded-lg shadow-sm p-4">
+        <h2 class="text-base font-semibold mb-2">세션 출석</h2>
+        <div id="attendanceCalendar" class="grid grid-cols-7 gap-2"></div>
+      </section>
+      
+      <!-- CSV 내보내기 -->
       <section class="bg-white rounded-lg shadow-sm p-4">
         <h2 class="text-base font-semibold">CSV 내보내기</h2>
         <button id="exportCsv" class="mt-2 px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">다운로드</button>
@@ -37,5 +56,4 @@
     <script src="../vendor/chart.min.js"></script>
     <script src="statistics.js" type="module"></script>
   </body>
-  </html>
-
+</html>
