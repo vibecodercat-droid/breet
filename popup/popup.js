@@ -595,6 +595,8 @@ async function expandBreakSelectionCard(payload) {
   // 후보 로딩
   await loadBreakCandidates();
   renderBreakCandidates();
+  // 버튼 상태 업데이트
+  await updateBreakButtons();
 }
 
 function collapseBreakSelectionCard() {
@@ -675,10 +677,12 @@ function renderBreakCandidates() {
   // 후보 개수 업데이트
   if (countEl) countEl.textContent = `(${allBreakCandidates.length})`;
   
-  // 남은 제안 횟수 업데이트
+  // 남은 제안 횟수 업데이트 (비동기로 처리)
   if (remainingEl) {
     const metaKey = currentBreakSessionId ? `prebreakMeta_${currentBreakSessionId}` : 'prebreakMeta';
-    chrome.storage.local.get([metaKey], ({ [metaKey]: meta = {} }) => {
+    chrome.storage.local.get([metaKey, 'prebreakMeta'], async ({ [metaKey]: sessionMeta = null, prebreakMeta = { otherUsed: 0, maxOther: 4 } }) => {
+      // 세션별 메타 우선 사용
+      const meta = sessionMeta || prebreakMeta || { otherUsed: 0, maxOther: 4 };
       const used = meta.otherUsed || 0;
       const max = meta.maxOther || 4;
       remainingEl.textContent = `${max - used}/${max}`;
@@ -689,7 +693,7 @@ function renderBreakCandidates() {
 async function loadNewBreakPage() {
   if (isLoadingBreaks) return;
   isLoadingBreaks = true;
-  updateBreakButtons();
+  await updateBreakButtons();
   
   try {
     const excludeIds = allBreakCandidates.map(c => c.id);
@@ -736,11 +740,11 @@ async function loadNewBreakPage() {
     }
   } finally {
     isLoadingBreaks = false;
-    updateBreakButtons();
+    await updateBreakButtons();
   }
 }
 
-function updateBreakButtons() {
+async function updateBreakButtons() {
   const otherBtn = document.getElementById('breakOtherSuggestion');
   const confirmBtn = document.getElementById('breakSelectionConfirm');
   if (otherBtn) {
@@ -748,19 +752,21 @@ function updateBreakButtons() {
       otherBtn.textContent = '생성 중...';
       otherBtn.disabled = true;
     } else {
-      // 남은 제안 횟수 확인
+      // 남은 제안 횟수 확인 (세션별 메타 우선)
       const metaKey = currentBreakSessionId ? `prebreakMeta_${currentBreakSessionId}` : 'prebreakMeta';
-      chrome.storage.local.get([metaKey], ({ [metaKey]: meta = {} }) => {
-        const used = meta.otherUsed || 0;
-        const max = meta.maxOther || 4;
-        if (used >= max) {
-          otherBtn.textContent = '더 이상 제안 없음';
-          otherBtn.disabled = true;
-        } else {
-          otherBtn.textContent = '다른 제안 받기';
-          otherBtn.disabled = false;
-        }
-      });
+      const { [metaKey]: sessionMeta = null } = await chrome.storage.local.get(metaKey);
+      const { prebreakMeta = { otherUsed: 0, maxOther: 4, breakMinutes: 5 } } = await chrome.storage.local.get('prebreakMeta');
+      // 세션별 메타 우선 사용, 없으면 전역 메타 사용
+      const meta = sessionMeta || prebreakMeta || { otherUsed: 0, maxOther: 4, breakMinutes: 5 };
+      const used = meta.otherUsed || 0;
+      const max = meta.maxOther || 4;
+      if (used >= max) {
+        otherBtn.textContent = '더 이상 제안 없음';
+        otherBtn.disabled = true;
+      } else {
+        otherBtn.textContent = '다른 제안 받기';
+        otherBtn.disabled = false;
+      }
     }
   }
 }
