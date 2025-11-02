@@ -163,6 +163,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     stopAllTimers().then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  if (message.type === 'breet:saveBreakHistory') {
+    appendBreakHistory(message.entry).then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
 });
 
 async function startWorkTimer(mode, workMinutes = 25, breakMinutes = 5) {
