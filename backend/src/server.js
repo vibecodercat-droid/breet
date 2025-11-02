@@ -61,7 +61,8 @@ app.post('/api/ai/recommendBreak', async (req, res) => {
       const prisma = getPrisma();
       if (prisma) {
         const userId = context?.userId || req.header('x-user-id') || null;
-        const rec = await prisma.aiRecommendation.create({ data: { userId, contextHash: null, requestPayload: { context, instructions }, responsePayload: json, model: GROQ_MODEL, latencyMs: latency } });
+        // 최적화: 로깅 시에도 원본 context 대신 최적화된 버전 사용 (선택사항)
+        const rec = await prisma.aiRecommendation.create({ data: { userId, contextHash: null, requestPayload: { context: optimizedContext, instructions }, responsePayload: json, model: GROQ_MODEL, latencyMs: latency } });
         if (json?.suggestions?.length) json.suggestions[0].recId = rec.id;
       }
     } catch {}
@@ -77,8 +78,14 @@ app.post('/api/ai/dailyQuote', async (req, res) => {
   const minChars = Number(constraints.minChars ?? 6);
   const maxChars = Number(constraints.maxChars ?? 10);
   const seed = constraints.seedPhrase || '';
-  const sys = `따뜻하고 위트 있게, ${minChars}~${maxChars}자 한국어 한 줄 문구만 출력. 마지막엔 이모지 하나 포함. 사용자가 건강히 쉬며 일하도록 동기부여. 예시 결:${seed}`;
-  const user = JSON.stringify({ context });
+  // 최적화: system prompt 간소화
+  const sys = `${minChars}~${maxChars}자 한국어 한 줄, 이모지 포함. 동기부여. 예:${seed}`;
+  // 최적화: context 크기 줄이기
+  const optimizedContext = {
+    wp: context?.workPatterns?.slice(0, 2) || [],
+    hc: context?.healthConcerns?.slice(0, 2) || [],
+  };
+  const user = JSON.stringify(optimizedContext);
   try {
     const text = await callGroqChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { max_tokens: 60, temperature: 0.8 });
     return res.json({ text: clampText(text, minChars, maxChars) });
