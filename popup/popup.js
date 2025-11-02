@@ -221,41 +221,7 @@ async function renderOnboardingSummary() {
     card.classList.add('hidden');
     return;
   }
-  // Chips helper
-  const chip = (label) => {
-    const el = document.createElement('span');
-    el.className = 'px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700 border border-transparent cursor-pointer select-none';
-    el.textContent = label;
-    return el;
-  };
-  // Work patterns
-  const workBox = document.getElementById('onbWork');
-  workBox.innerHTML = '';
-  const workAll = ['coding','writing','design','meeting'];
-  const WORK_LABELS = { coding: '코딩', writing: '문서작성', design: '디자인', meeting: '미팅' };
-  const workSelected = new Set(userProfile.workPatterns || []);
-  workAll.forEach((w) => {
-    const el = chip(WORK_LABELS[w] || w);
-    if (workSelected.has(w)) el.classList.add('bg-blue-50','text-blue-700','border-blue-300');
-    el.dataset.category = 'workPatterns';
-    el.dataset.value = w;
-    el.addEventListener('click', () => onToggleOnboardingChip(el));
-    workBox.appendChild(el);
-  });
-  // Health concerns
-  const healthBox = document.getElementById('onbHealth');
-  healthBox.innerHTML = '';
-  const healthAll = ['eyeStrain','neckPain','backPain','stress'];
-  const HEALTH_LABELS = { eyeStrain: '눈 피로', neckPain: '목 통증', backPain: '허리 통증', stress: '스트레스' };
-  const healthSelected = new Set(userProfile.healthConcerns || []);
-  healthAll.forEach((h) => {
-    const el = chip(HEALTH_LABELS[h] || h);
-    if (healthSelected.has(h)) el.classList.add('bg-blue-50','text-blue-700','border-blue-300');
-    el.dataset.category = 'healthConcerns';
-    el.dataset.value = h;
-    el.addEventListener('click', () => onToggleOnboardingChip(el));
-    healthBox.appendChild(el);
-  });
+  // 제목(dailyAffirmation)만 표시하고 작업 유형/건강 관심사는 설정 페이지로 이동
   card.classList.remove('hidden');
 }
 
