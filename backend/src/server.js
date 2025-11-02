@@ -50,10 +50,10 @@ app.post('/api/ai/recommendBreak', async (req, res) => {
       c: context?.constraints || {}, // constraints
     };
     
-    // 최적화: instructions 간소화
+    // 최적화: instructions 간소화 + 명사형 지시
     const sys = instructions && String(instructions).trim().length
       ? String(instructions)
-      : `브레이크 코치. JSON만: {"suggestions":[{id,type,duration,description}]}. duration:${allowed[0]}분. description:8~20자 한국어.`;
+      : `브레이크 코치. JSON만: {"suggestions":[{id,type,duration,description}]}. duration:${allowed[0]}분. description:8~20자 한국어 명사형(예: 눈 건강을 위한 간단한 운동).`;
     const user = JSON.stringify(optimizedContext);
     const started = Date.now();
     const text = await callGroqChat(
