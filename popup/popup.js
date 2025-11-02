@@ -788,13 +788,10 @@ async function onBreakCandidateSelected() {
   const pendingKey = currentBreakSessionId ? `pendingBreak_${currentBreakSessionId}` : 'pendingBreak';
   await chrome.storage.local.set({ [pendingKey]: selected, pendingBreak: selected });
   
-  // 세션 상태 확인
+  // 세션 상태 확인 (타이머 버튼 클릭 시에만 카드가 표시되므로 selecting 단계만 처리)
   const { sessionState } = await chrome.storage.local.get('sessionState');
   
-  if (sessionState?.phase === 'work_ending') {
-    // WORK_ENDING 단계: 브레이크 타이머만 시작
-    await chrome.runtime.sendMessage({ type: 'breet:startBreakTimer' });
-  } else if (sessionState?.phase === 'selecting' && breakSelectionPayload) {
+  if (sessionState?.phase === 'selecting' && breakSelectionPayload) {
     // SELECTING 단계: 작업 타이머 시작
     await chrome.runtime.sendMessage({ type: 'breet:startTimer', payload: breakSelectionPayload });
   }
