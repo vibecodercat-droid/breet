@@ -267,11 +267,36 @@ async function renderTimerDescription() {
     el.textContent = timerDescription.text;
     return;
   }
-  // try AI; fallback to default
+  // try AI with timerDescription-specific constraints
   let text = '';
   try {
-    text = await requestDailyAffirmation({ workPatterns: userProfile.workPatterns, healthConcerns: userProfile.healthConcerns });
-  } catch {}
+    const { getApiBase } = await import('../lib/auth.js');
+    const apiBase = getApiBase();
+    const res = await fetch(`${apiBase}/api/ai/dailyQuote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        context: { 
+          workPatterns: userProfile.workPatterns || [], 
+          healthConcerns: userProfile.healthConcerns || [] 
+        }, 
+        constraints: { 
+          minChars: 10, 
+          maxChars: 30, 
+          tone: 'warm', 
+          witty: true, 
+          suffixEmoji: true, 
+          seedPhrase: '쉬면서 일해야 건강하고 행복해요!' 
+        } 
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      text = data?.text || '';
+    }
+  } catch (e) {
+    console.error('[Popup] Timer description generation error', e);
+  }
   const FALLBACK = '쉬면서 일해야 건강하고 행복 ☕';
   const MAX = 30, MIN = 10;
   const ensureLen = (s) => {
@@ -283,8 +308,18 @@ async function renderTimerDescription() {
     text = FALLBACK;
   } else {
     text = ensureLen(text);
-    if (text === FALLBACK && !/\p{Emoji}/u.test(text)) {
-      text = text.replace(/\s*$/, ' ☕');
+    // ~요 패턴 확인
+    if (!/(요|세요|해요|되요|돼요)$/.test(text)) {
+      // ~요 패턴이 없으면 추가
+      if (/(다|아|어|해|되|돼|야|지)$/.test(text)) {
+        text = text.replace(/(다|아|어|해|되|돼|야|지)$/, '') + '요';
+      } else {
+        text = text.trim() + '요';
+      }
+    }
+    // 이모지 확인
+    if (!/\p{Emoji}/u.test(text)) {
+      text = text.trim() + ' ☕';
     }
   }
   el.textContent = text;
