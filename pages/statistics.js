@@ -178,6 +178,7 @@ async function renderAttendanceCalendar() {
   const firstDay = days[0].getDay();
   for (let i = 0; i < firstDay; i++) {
     const empty = document.createElement('div');
+    empty.className = 'h-8 w-16'; // 빈 칸도 동일한 너비로 맞춤
     calendar.appendChild(empty);
   }
   
