@@ -656,7 +656,8 @@ function renderBreakCandidates() {
     const absIdx = startIdx + i;
     const isSelected = absIdx === selectedBreakIndex;
     const div = document.createElement('div');
-    div.className = `p-4 rounded-lg cursor-pointer transition-colors min-h-[44px] flex items-center ${isSelected ? 'bg-blue-500 text-white border-2 border-blue-600' : 'bg-white border border-gray-200 hover:border-blue-300'}`;
+    // 높이를 2/3로 줄임: p-4 (16px) -> py-2.5 px-3 (10px 12px), min-h-[44px] -> min-h-[30px]
+    div.className = `py-2.5 px-3 rounded-lg cursor-pointer transition-colors min-h-[30px] flex items-center ${isSelected ? 'bg-blue-500 text-white border-2 border-blue-600' : 'bg-white border border-gray-200 hover:border-blue-300'}`;
     div.addEventListener('click', async () => {
       selectedBreakIndex = absIdx;
       await onBreakCandidateSelected();
@@ -664,7 +665,8 @@ function renderBreakCandidates() {
     
     const content = document.createElement('div');
     content.className = 'flex-1';
-    content.innerHTML = `<div class="font-semibold text-base mb-1">${c?.name || ''}</div><div class="text-xs ${isSelected ? 'text-blue-100' : 'text-gray-500'}">${c?.howTo || ''}</div>`;
+    // 폰트 크기는 휴식 추천 제목과 동일하게 text-base 유지
+    content.innerHTML = `<div class="font-semibold text-base mb-0.5">${c?.name || ''}</div><div class="text-xs ${isSelected ? 'text-blue-100' : 'text-gray-500'}">${c?.howTo || ''}</div>`;
     div.appendChild(content);
     
     list.appendChild(div);
