@@ -48,9 +48,24 @@ function validateKoreanSpelling(s = '') {
   
   // 4. 문장 끝맺음 확인 (~요 패턴 또는 이모지로 끝나야 함)
   const validEndings = /(요|세요|해요|되요|돼요)\s*\p{Emoji}*\s*$/u;
-  if (!validEndings.test(text) && !/\p{Emoji}\s*$/u.test(text)) {
-    // ~요 패턴과 이모지가 없으면 검증 실패로 간주
-    return '';
+  const hasEmojiEnd = /\p{Emoji}\s*$/u.test(text);
+  
+  // ~요 패턴이나 이모지로 끝나지 않으면 자동으로 보정
+  if (!validEndings.test(text) && !hasEmojiEnd) {
+    // ~요 패턴이 없으면 추가
+    if (!/(요|세요|해요|되요|돼요)$/.test(text)) {
+      // 마지막이 동사형이면 ~요로 변환
+      if (/(다|아|어|해|되|돼|야|지)$/.test(text)) {
+        text = text.replace(/(다|아|어|해|되|돼|야|지)$/, '') + '요';
+      } else {
+        text = text.trim() + '요';
+      }
+    }
+    // 이모지가 없으면 추가
+    const emojiRegex = /\p{Emoji}/u;
+    if (!emojiRegex.test(text)) {
+      text = text.trim() + ' ☕';
+    }
   }
   
   return text.trim();
@@ -254,11 +269,27 @@ app.post('/api/ai/dailyQuote', async (req, res) => {
   const user = JSON.stringify(optimizedContext);
   try {
     const text = await callGroqChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { max_tokens: 60, temperature: 0.8 });
-    let clamped = clampText(text, minChars, maxChars);
+    
+    // 프롬프트가 그대로 반환되는 경우 체크 (시스템 프롬프트가 포함되어 있으면 제거)
+    let cleanedText = String(text || '').trim();
+    
+    // 시스템 프롬프트가 응답에 포함되어 있는지 확인
+    if (cleanedText.includes('한국어 완전한 문장') || cleanedText.includes('웰니스 코치') || cleanedText.includes('존대어 사용')) {
+      // 프롬프트가 포함되어 있으면 빈 문자열로 처리
+      cleanedText = '';
+    }
+    
+    if (!cleanedText) {
+      return res.json({ text: '' });
+    }
+    
+    let clamped = clampText(cleanedText, minChars, maxChars);
     
     // 최종 맞춤법 검사 (timerDescription인 경우)
     if (isTimerDescription && clamped) {
-      clamped = validateKoreanSpelling(clamped);
+      const validated = validateKoreanSpelling(clamped);
+      // 검증 실패 시 원본 사용 (clampText에서 이미 처리됨)
+      clamped = validated || clamped;
     }
     
     return res.json({ text: clamped });
