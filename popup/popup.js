@@ -215,14 +215,9 @@ function setControlsEnabled(enabled) {
 }
 
 async function renderOnboardingSummary() {
-  const { userProfile = null } = await chrome.storage.local.get('userProfile');
-  const card = document.getElementById('onboardingCard');
-  if (!userProfile || !userProfile.onboardingCompleted) {
-    card.classList.add('hidden');
-    return;
-  }
-  // 제목(dailyAffirmation)만 표시하고 작업 유형/건강 관심사는 설정 페이지로 이동
-  card.classList.remove('hidden');
+  // onboardingCard 섹션이 삭제되었으므로 더 이상 렌더링하지 않음
+  // 작업 유형/건강 관심사는 설정 페이지에서 관리
+  return;
 }
 
 function dateKey(d = new Date()) { const x = new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); }
