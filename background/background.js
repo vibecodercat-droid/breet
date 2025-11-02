@@ -81,12 +81,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       try {
         const metaKey = sessionId ? `prebreakMeta_${sessionId}` : 'prebreakMeta';
         const { [metaKey]: metaFallback = null } = await chrome.storage.local.get(metaKey);
-        const { prebreakMeta = { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes || 5 } } = await chrome.storage.local.get('prebreakMeta');
-        const preMeta = metaFallback || prebreakMeta || { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes || 5 };
+        const { prebreakMeta = { otherUsed: 0, maxOther: 4, breakMinutes: 5 } } = await chrome.storage.local.get('prebreakMeta');
+        const preMeta = metaFallback || prebreakMeta || { otherUsed: 0, maxOther: 4, breakMinutes: 5 };
         if ((preMeta.otherUsed || 0) >= (preMeta.maxOther || 4)) {
           sendResponse({ ok: false, error: 'limit_reached' });
           return;
         }
+        // breakMinutes 우선순위: payload > meta > 5
         const bm = breakMinutes ?? preMeta.breakMinutes ?? 5;
         await recommendNextBreakWithAI(bm, excludeIds);
         // Copy generic candidates into session-namespaced keys if sessionId provided
@@ -296,20 +297,23 @@ async function playSound(path) {
 async function openPreBreakSelection(payload) {
   // 이전 후보/선택값 초기화 후, 현재 모드의 분수로 새 후보 생성
   const sessionId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+  // breakMinutes는 payload에서 명확히 가져오기 (5, 10, 3 중 하나)
+  const breakMinutes = payload?.breakMinutes || 5;
   await chrome.storage.local.set({ pendingBreak: null, pendingBreakCandidates: [] });
-  const rec = await recommendNextBreakWithAI(payload?.breakMinutes);
+  // 올바른 breakMinutes로 추천 생성
+  const rec = await recommendNextBreakWithAI(breakMinutes);
   // 세션별 네임스페이스에 복사 저장
   const { pendingBreakCandidates = [] } = await chrome.storage.local.get('pendingBreakCandidates');
-  const ns = {}; ns[`pendingBreak_${sessionId}`] = rec; ns[`pendingBreakCandidates_${sessionId}`] = pendingBreakCandidates; ns[`prebreakMeta_${sessionId}`] = { otherUsed: 0, maxOther: 4, breakMinutes: payload?.breakMinutes || 5 };
+  const ns = {}; ns[`pendingBreak_${sessionId}`] = rec; ns[`pendingBreakCandidates_${sessionId}`] = pendingBreakCandidates; ns[`prebreakMeta_${sessionId}`] = { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes };
   await chrome.storage.local.set(ns);
   await chrome.storage.local.set({
-    prebreakPayload: payload,
-    prebreakMeta: { otherUsed: 0, maxOther: 4, breakMinutes: payload?.breakMinutes || 5 },
+    prebreakPayload: { ...payload, breakMinutes: breakMinutes },
+    prebreakMeta: { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes },
     pendingBreak: rec,
-    [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: payload?.breakMinutes || 5 }
+    [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: breakMinutes }
   });
   // 팝업 대신 메시지 전송하여 인라인 카드 펼침 (세션 ID 포함)
-  chrome.runtime.sendMessage({ type: 'breet:expandBreakSelection', payload: { ...payload, sessionId } }).catch(() => {});
+  chrome.runtime.sendMessage({ type: 'breet:expandBreakSelection', payload: { ...payload, sessionId, breakMinutes } }).catch(() => {});
 }
 
 async function handleWorkEnd() {
@@ -319,10 +323,11 @@ async function handleWorkEnd() {
     await playSound('bgm/task_complete_bgm.mp3');
     notifyToast('과업 시간이 끝났습니다!', '쉬는 시간을 시작합니다.', 10000);
     const now = Date.now();
+    const breakMinutes = sessionState?.breakDuration || 5;
     await chrome.storage.local.set({ lastWorkEndTs: now, [STORAGE_KEYS.SESSION]: { ...sessionState, phase: PHASES.WORK_ENDING, startTs: now, endTs: now + 10000 } });
     await chrome.alarms.create(ALARM_NAMES.TOAST, { when: Date.now() + 10000 });
-    // 인라인 카드 자동 펼침 요청
-    chrome.runtime.sendMessage({ type: 'breet:expandBreakSelection', payload: { sessionId: null } }).catch(() => {});
+    // 인라인 카드 자동 펼침 요청 (현재 세션의 breakMinutes 포함)
+    chrome.runtime.sendMessage({ type: 'breet:expandBreakSelection', payload: { sessionId: null, breakMinutes } }).catch(() => {});
   } catch (e) { console.error('[Timer] handleWorkEnd error', e); }
 }
 

@@ -649,14 +649,20 @@ async function loadNewBreakPage() {
     const excludeIds = allBreakCandidates.map(c => c.id);
     const metaKey = currentBreakSessionId ? `prebreakMeta_${currentBreakSessionId}` : 'prebreakMeta';
     const { [metaKey]: meta = {} } = await chrome.storage.local.get(metaKey);
+    // breakMinutes 우선순위: meta > breakSelectionPayload > 5
     const breakMinutes = meta.breakMinutes || breakSelectionPayload?.breakMinutes || 5;
     
-    const reqPayload = currentBreakSessionId ? { sessionId: currentBreakSessionId, excludeIds } : { breakMinutes, excludeIds };
+    const reqPayload = currentBreakSessionId ? { sessionId: currentBreakSessionId, excludeIds, breakMinutes } : { breakMinutes, excludeIds };
     
     await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ type: 'breet:requestNewBreaks', payload: reqPayload }, (resp) => {
         if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
-        if (!resp || !resp.ok) return reject(new Error(resp?.error || 'failed'));
+        if (!resp || !resp.ok) {
+          if (resp?.error === 'limit_reached') {
+            return reject(new Error('limit_reached'));
+          }
+          return reject(new Error(resp?.error || 'failed'));
+        }
         resolve();
       });
     });
@@ -677,7 +683,11 @@ async function loadNewBreakPage() {
     renderBreakCandidates();
   } catch (e) {
     console.error('[BreakSelection] loadNewBreakPage error', e);
-    alert('새로운 추천을 불러오는데 실패했습니다.');
+    if (e.message === 'limit_reached') {
+      alert('더 이상 새로운 제안을 받을 수 없습니다. (최대 4회)');
+    } else {
+      alert('새로운 추천을 불러오는데 실패했습니다.');
+    }
   } finally {
     isLoadingBreaks = false;
     updateBreakButtons();
@@ -692,8 +702,19 @@ function updateBreakButtons() {
       otherBtn.textContent = '생성 중...';
       otherBtn.disabled = true;
     } else {
-      otherBtn.textContent = '다른 제안 받기';
-      otherBtn.disabled = false;
+      // 남은 제안 횟수 확인
+      const metaKey = currentBreakSessionId ? `prebreakMeta_${currentBreakSessionId}` : 'prebreakMeta';
+      chrome.storage.local.get([metaKey], ({ [metaKey]: meta = {} }) => {
+        const used = meta.otherUsed || 0;
+        const max = meta.maxOther || 4;
+        if (used >= max) {
+          otherBtn.textContent = '더 이상 제안 없음';
+          otherBtn.disabled = true;
+        } else {
+          otherBtn.textContent = '다른 제안 받기';
+          otherBtn.disabled = false;
+        }
+      });
     }
   }
 }
