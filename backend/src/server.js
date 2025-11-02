@@ -17,48 +17,86 @@ const GROQ_BASE_URL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/
 
 function clampText(s = '', min = 1, max = 50) {
   const t = (s || '').trim();
+  if (!t) return '';
   if (t.length < min) return t.padEnd(min, ' ');
-  if (t.length <= max) return t;
   
-  // 최대 길이를 초과하는 경우, 문장 끝맺음 보장
-  let clamped = t.slice(0, max);
+  const emojiRegex = /\p{Emoji}/u;
+  const emojiAllRegex = /\p{Emoji}/gu;
   
-  // 이모지가 잘렸는지 확인 (이모지는 2바이트 이상)
-  const emojiRegex = /\p{Emoji}/gu;
-  const lastEmojiMatch = [...t.matchAll(emojiRegex)];
-  if (lastEmojiMatch.length > 0) {
-    const lastEmojiIndex = lastEmojiMatch[lastEmojiMatch.length - 1].index;
-    // 마지막 이모지가 잘렸으면 그 전까지만 자르기
-    if (lastEmojiIndex >= max - 5) {
-      clamped = t.slice(0, Math.min(max, lastEmojiIndex + 10)); // 이모지 이후 약간의 여유
+  // 적절한 길이면 이모지 확인 및 추가
+  if (t.length <= max) {
+    if (max > 15 && !emojiAllRegex.test(t)) {
+      // timerDescription인데 이모지가 없으면 추가
+      const trimmed = t.trim();
+      // 문장 끝맺음 확인
+      if (!/[.!?]$/.test(trimmed)) {
+        return trimmed + '. ☕';
+      }
+      return trimmed + ' ☕';
     }
+    // 문장 끝맺음 확인
+    if (!/[.!?~]$/.test(t)) {
+      return t.trim() + (max > 15 ? '. ☕' : '.');
+    }
+    return t;
   }
   
-  // 문장이 중간에 잘렸는지 확인하고 정리
-  // 마지막 문장 부호(., !, ?, ~) 또는 이모지로 끝나도록
-  const sentenceEndRegex = /[.!?~]\s*\p{Emoji}*\s*$/u;
-  if (!sentenceEndRegex.test(clamped)) {
-    // 중간에 잘렸으면 가장 가까운 문장 부호나 공백으로 자르기
-    const lastPeriod = clamped.lastIndexOf('.');
-    const lastExclamation = clamped.lastIndexOf('!');
-    const lastQuestion = clamped.lastIndexOf('?');
-    const lastEmoji = clamped.search(/\p{Emoji}/u);
-    const cutPoint = Math.max(lastPeriod, lastExclamation, lastQuestion, lastEmoji);
+  // 최대 길이 초과: 완전한 문장과 이모지 보장
+  // 패턴 1: "문장끝 이모지" 찾기 (가장 이상적)
+  const sentenceEndPattern = /[.!?~]/g;
+  const endMatches = [...t.matchAll(sentenceEndPattern)];
+  const emojiMatches = [...t.matchAll(emojiAllRegex)];
+  
+  let bestEnd = -1;
+  
+  // 문장끝 + 이모지 조합 찾기
+  for (let i = endMatches.length - 1; i >= 0; i--) {
+    const endIdx = endMatches[i].index + 1;
+    if (endIdx > max) continue;
     
-    if (cutPoint > max * 0.7) { // 70% 이상이면 그 지점에서 자르기
-      clamped = clamped.slice(0, cutPoint + 1);
-    } else {
-      // 그렇지 않으면 공백으로 자르기
-      const lastSpace = clamped.lastIndexOf(' ');
-      if (lastSpace > max * 0.7) {
-        clamped = clamped.slice(0, lastSpace);
+    // 이 문장끝 이후에 이모지가 있는지 확인
+    const afterEnd = t.slice(endIdx);
+    const emojiInAfter = afterEnd.search(emojiAllRegex);
+    if (emojiInAfter !== -1) {
+      const emojiEnd = endIdx + emojiInAfter + 1; // 이모지 길이 대략 1-2
+      if (emojiEnd <= max + 5) { // 약간의 여유
+        bestEnd = Math.min(max, emojiEnd + 2);
+        break;
       }
     }
   }
   
-  // 이모지가 없으면 추가 (timerDescription의 경우)
-  if (max > 15 && !emojiRegex.test(clamped)) {
-    clamped = clamped.trim() + ' ☕';
+  // 패턴 2: 문장끝만 (이모지는 나중에 추가)
+  if (bestEnd === -1) {
+    for (let i = endMatches.length - 1; i >= 0; i--) {
+      const endIdx = endMatches[i].index + 1;
+      if (endIdx <= max) {
+        bestEnd = endIdx;
+        break;
+      }
+    }
+  }
+  
+  // 패턴 3: 공백으로 자르기
+  if (bestEnd === -1) {
+    const lastSpace = t.lastIndexOf(' ', max);
+    if (lastSpace > max * 0.6) {
+      bestEnd = lastSpace;
+    } else {
+      bestEnd = max;
+    }
+  }
+  
+  let clamped = t.slice(0, bestEnd).trim();
+  
+  // 문장 끝맺음 확인 및 추가
+  if (!/[.!?~]$/.test(clamped)) {
+    clamped += '.';
+  }
+  
+  // 이모지 확인 및 추가 (timerDescription의 경우)
+  if (max > 15 && !emojiAllRegex.test(clamped)) {
+    clamped += ' ☕';
   }
   
   return clamped.trim();
