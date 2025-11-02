@@ -221,7 +221,8 @@ async function renderOnboardingSummary() {
   return;
 }
 
-function dateKey(d = new Date()) { const x = new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); }
+// dateKey는 localDateKey로 대체 (로컬 기준)
+const dateKey = localDateKey;
 function formatKR(d = new Date()) { const y=String(d.getFullYear()).slice(2); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const wk=['일','월','화','수','목','금','토'][d.getDay()]; return `${y}.${m}.${dd} (${wk})`; }
 function renderDateHeader(){ const el=document.getElementById('dateTitle'); if (el) el.textContent = formatKR(currentDay); }
 
