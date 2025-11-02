@@ -35,20 +35,45 @@ async function refreshSessionStats() {
 async function refreshTodoStats() {
   const dk = dateKey(); // 오늘 날짜 (YYYY-MM-DD 형식)
   const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
+  
+  // 디버깅: 전체 구조 확인
+  console.log('[Stats] RefreshTodoStats - dateKey:', dk);
+  console.log('[Stats] todosByDate keys:', Object.keys(todosByDate));
+  console.log('[Stats] todosByDate[dk]:', todosByDate[dk]);
+  
   const todos = Array.isArray(todosByDate[dk]) ? todosByDate[dk] : [];
+  console.log('[Stats] Todos array:', todos);
+  
   const done = todos.filter((t) => t.completed === true).length;
   const total = todos.length;
   const rate = total ? Math.round((done / total) * 100) : 0;
+  
+  console.log('[Stats] Todo stats calculated:', { dk, done, total, rate, todosCount: todos.length });
   
   const doneEl = document.getElementById('todoDone');
   const totalEl = document.getElementById('todoTotal');
   const rateEl = document.getElementById('todoRate');
   
-  if (doneEl) doneEl.textContent = String(done);
-  if (totalEl) totalEl.textContent = String(total);
-  if (rateEl) rateEl.textContent = `${rate}%`;
+  if (doneEl) {
+    doneEl.textContent = String(done);
+    console.log('[Stats] Updated todoDone element:', done);
+  } else {
+    console.error('[Stats] todoDone element not found!');
+  }
   
-  console.log('[Stats] Todo stats refreshed:', { dk, done, total, rate });
+  if (totalEl) {
+    totalEl.textContent = String(total);
+    console.log('[Stats] Updated todoTotal element:', total);
+  } else {
+    console.error('[Stats] todoTotal element not found!');
+  }
+  
+  if (rateEl) {
+    rateEl.textContent = `${rate}%`;
+    console.log('[Stats] Updated todoRate element:', rate);
+  } else {
+    console.error('[Stats] todoRate element not found!');
+  }
 }
 
 // 주간 막대그래프 (세션 + 투두 분리)
@@ -196,6 +221,7 @@ function setupRealtimeUpdates() {
     if (areaName !== 'local') return;
     
     console.log('[Stats] Storage changed:', Object.keys(changes));
+    console.log('[Stats] Changes details:', changes);
     
     // breakHistory 변경 시
     if (changes.breakHistory) {
@@ -207,9 +233,13 @@ function setupRealtimeUpdates() {
     
     // todosByDate 변경 시 (추가, 완료 토글, 삭제, 미루기 모두 포함)
     if (changes.todosByDate) {
-      console.log('[Stats] TodosByDate changed, refreshing todo stats');
-      refreshTodoStats();
-      renderWeekly();
+      console.log('[Stats] TodosByDate changed, newValue:', changes.todosByDate.newValue);
+      console.log('[Stats] Refreshing todo stats immediately');
+      // 즉시 반영
+      setTimeout(() => {
+        refreshTodoStats();
+        renderWeekly();
+      }, 100); // 짧은 딜레이로 저장 완료 보장
     }
   });
   
@@ -217,6 +247,15 @@ function setupRealtimeUpdates() {
   setInterval(() => {
     refreshTodoStats();
   }, 1000);
+  
+  // 페이지 포커스 시에도 새로고침 (사용자가 다른 탭에서 투두를 완료한 경우)
+  window.addEventListener('focus', () => {
+    console.log('[Stats] Window focused, refreshing stats');
+    refreshSessionStats();
+    refreshTodoStats();
+    renderWeekly();
+    renderAttendanceCalendar();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
