@@ -282,7 +282,7 @@ async function renderTimerDescription() {
         }, 
         constraints: { 
           minChars: 10, 
-          maxChars: 30, 
+          maxChars: 28, 
           tone: 'warm', 
           witty: true, 
           suffixEmoji: true, 
@@ -298,7 +298,7 @@ async function renderTimerDescription() {
     console.error('[Popup] Timer description generation error', e);
   }
   const FALLBACK = '쉬면서 일해야 건강하고 행복 ☕';
-  const MAX = 30, MIN = 10;
+  const MAX = 28, MIN = 10;
   const ensureLen = (s) => {
     const trimmed = (s || '').trim();
     if (trimmed.length >= MIN && trimmed.length <= MAX) return trimmed;
