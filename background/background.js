@@ -11,6 +11,7 @@ const ALARM_NAMES = {
   WORK: 'breet_work_timer',
   BREAK: 'breet_break_timer',
   TOAST: 'breet_toast_timer',
+  DAILY_REFRESH: 'breet_daily_refresh',
 };
 
 const PHASES = {
@@ -36,7 +37,25 @@ chrome.runtime.onInstalled.addListener(() => {
       breakDuration: 5,
     }
   });
+  // 00시마다 dailyAffirmation과 timerDescription 생성
+  scheduleDailyRefresh();
 });
+
+// 다음 00시까지 남은 시간 계산
+function getNextMidnight() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  midnight.setDate(midnight.getDate() + 1); // 다음 날 00시
+  return midnight.getTime();
+}
+
+// 일일 새로고침 알람 스케줄
+async function scheduleDailyRefresh() {
+  const when = getNextMidnight();
+  await chrome.alarms.create(ALARM_NAMES.DAILY_REFRESH, { when });
+  console.log('[Background] Scheduled daily refresh at', new Date(when).toISOString());
+}
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (!alarm || !alarm.name) return;
@@ -46,6 +65,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     handleToastEnd();
   } else if (alarm.name === ALARM_NAMES.BREAK) {
     handleBreakEnd();
+  } else if (alarm.name === ALARM_NAMES.DAILY_REFRESH) {
+    handleDailyRefresh().then(() => {
+      // 다음 날 00시 알람 다시 설정
+      scheduleDailyRefresh();
+    }).catch((e) => {
+      console.error('[Background] Daily refresh error', e);
+      scheduleDailyRefresh(); // 에러가 나도 다음 알람은 설정
+    });
   }
 });
 
@@ -402,6 +429,108 @@ async function handleBreakCompleted(payload) {
     await saveBreakHistory(!!completed, actualDuration || undefined);
     await stopAllTimers();
   } catch (e) { console.error('[Timer] handleBreakCompleted error', e); }
+}
+
+// 일일 새로고침: 00시에 dailyAffirmation과 timerDescription 생성
+async function handleDailyRefresh() {
+  try {
+    const { userProfile = {} } = await chrome.storage.local.get('userProfile');
+    const dk = dateKey();
+    
+    // dailyAffirmation 생성
+    let affirmationText = '';
+    try {
+      const apiBase = await getApiBase();
+      const res = await fetch(`${apiBase}/api/ai/dailyQuote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          context: { 
+            workPatterns: userProfile.workPatterns || [], 
+            healthConcerns: userProfile.healthConcerns || [] 
+          }, 
+          constraints: { 
+            minChars: 6, 
+            maxChars: 15, 
+            tone: 'warm', 
+            witty: true, 
+            suffixEmoji: true, 
+            seedPhrase: '쉬면서 일해야 능률이 올라가요!' 
+          } 
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        affirmationText = data?.text || '';
+      }
+    } catch (e) {
+      console.error('[Background] Daily affirmation generation error', e);
+    }
+    
+    // timerDescription 생성 (같은 API 사용)
+    let timerDescText = '';
+    try {
+      const apiBase = await getApiBase();
+      const res = await fetch(`${apiBase}/api/ai/dailyQuote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          context: { 
+            workPatterns: userProfile.workPatterns || [], 
+            healthConcerns: userProfile.healthConcerns || [] 
+          }, 
+          constraints: { 
+            minChars: 10, 
+            maxChars: 25, 
+            tone: 'warm', 
+            witty: true, 
+            suffixEmoji: true, 
+            seedPhrase: '쉬면서 일해야 건강하고 행복해요!' 
+          } 
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        timerDescText = data?.text || '';
+      }
+    } catch (e) {
+      console.error('[Background] Timer description generation error', e);
+    }
+    
+    // 저장
+    const toSave = {};
+    if (affirmationText) {
+      toSave.dailyAffirmation = { dateKey: dk, text: affirmationText };
+    }
+    if (timerDescText) {
+      toSave.timerDescription = { dateKey: dk, text: timerDescText };
+    }
+    
+    if (Object.keys(toSave).length > 0) {
+      await chrome.storage.local.set(toSave);
+      console.log('[Background] Daily refresh completed', { dk, hasAffirmation: !!affirmationText, hasTimerDesc: !!timerDescText });
+    }
+  } catch (e) {
+    console.error('[Background] handleDailyRefresh error', e);
+    throw e;
+  }
+}
+
+// 날짜 키 생성 (YYYY-MM-DD 형식)
+function dateKey(d = new Date()) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x.toISOString().slice(0, 10);
+}
+
+// API 베이스 URL 가져오기 (auth.js와 동일한 로직)
+async function getApiBase() {
+  try {
+    const { apiBase = 'http://localhost:8080' } = await chrome.storage.local.get('apiBase');
+    return apiBase;
+  } catch {
+    return 'http://localhost:8080';
+  }
 }
 
 async function clearAllTimers() {
