@@ -30,7 +30,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await refreshAuthUI();
   await renderOnboardingSummary();
-  await renderDailyAffirmation();
   await renderTimerDescription();
 
   document.getElementById('loginBtn').addEventListener('click', async () => {
