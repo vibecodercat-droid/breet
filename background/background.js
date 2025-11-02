@@ -368,8 +368,7 @@ async function handleWorkEnd() {
     const breakMinutes = sessionState?.breakDuration || 5;
     await chrome.storage.local.set({ lastWorkEndTs: now, [STORAGE_KEYS.SESSION]: { ...sessionState, phase: PHASES.WORK_ENDING, startTs: now, endTs: now + 10000 } });
     await chrome.alarms.create(ALARM_NAMES.TOAST, { when: Date.now() + 10000 });
-    // 인라인 카드 자동 펼침 요청 (현재 세션의 breakMinutes 포함)
-    chrome.runtime.sendMessage({ type: 'breet:expandBreakSelection', payload: { sessionId: null, breakMinutes } }).catch(() => {});
+    // WORK_ENDING에서는 카드를 자동 펼치지 않음 (타이머 버튼 클릭 시에만 표시)
   } catch (e) { console.error('[Timer] handleWorkEnd error', e); }
 }
 

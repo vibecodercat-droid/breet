@@ -161,15 +161,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     return false;
   });
   
-  // 세션 상태 구독: WORK_ENDING일 때 자동 펼침
+  // 세션 상태 구독: break나 idle일 때 카드 닫기 (WORK_ENDING에서는 자동 펼침하지 않음)
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.sessionState?.newValue) {
       const newPhase = changes.sessionState.newValue.phase;
-      if (newPhase === 'work_ending') {
-        setTimeout(() => expandBreakSelectionCard(), 100);
-      } else if (newPhase === 'break' || newPhase === 'idle') {
+      if (newPhase === 'break' || newPhase === 'idle') {
         collapseBreakSelectionCard();
       }
+      // WORK_ENDING에서는 자동 펼침하지 않음 (타이머 버튼 클릭 시에만 표시)
     }
   });
 });
@@ -516,10 +515,11 @@ async function initBreakSelectionCard() {
     collapseBreakSelectionCard();
   });
   
-  // 초기 상태 확인 및 업데이트
+  // 초기 상태 확인 및 업데이트 (타이머 버튼 클릭 시에만 표시)
   const { sessionState, prebreakPayload } = await chrome.storage.local.get(['sessionState', 'prebreakPayload']);
-  if (sessionState?.phase === 'work_ending' || sessionState?.phase === 'selecting') {
-    if (prebreakPayload) breakSelectionPayload = prebreakPayload;
+  // selecting 단계일 때만 표시 (WORK_ENDING에서는 자동 표시하지 않음)
+  if (sessionState?.phase === 'selecting' && prebreakPayload) {
+    breakSelectionPayload = prebreakPayload;
     await expandBreakSelectionCard();
   } else {
     // IDLE/WORK 중: 접힌 상태로 표시 (카드는 항상 표시)
