@@ -169,7 +169,7 @@ async function renderAttendanceCalendar() {
   const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
   dayLabels.forEach(label => {
     const header = document.createElement('div');
-    header.className = 'text-xs font-semibold text-gray-600 text-center';
+    header.className = 'text-xs font-semibold text-gray-600 text-center flex items-center justify-center';
     header.textContent = label;
     calendar.appendChild(header);
   });
@@ -189,7 +189,7 @@ async function renderAttendanceCalendar() {
     const isToday = key === localDateKey();
     
     const cell = document.createElement('div');
-    cell.className = `h-8 w-8 rounded text-xs flex items-center justify-center ${
+    cell.className = `h-8 w-16 rounded text-xs flex items-center justify-center ${
       isToday ? 'ring-2 ring-blue-500' : ''
     } ${
       completed ? 'bg-blue-500 text-white' : 
