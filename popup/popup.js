@@ -308,16 +308,15 @@ async function renderTimerDescription() {
     text = FALLBACK;
   } else {
     text = ensureLen(text);
-    // ~요 패턴 확인
-    if (!/(요|세요|해요|되요|돼요)$/.test(text)) {
-      // ~요 패턴이 없으면 추가
-      if (/(다|아|어|해|되|돼|야|지)$/.test(text)) {
-        text = text.replace(/(다|아|어|해|되|돼|야|지)$/, '') + '요';
-      } else {
-        text = text.trim() + '요';
+    // 여러 문장 체크 (마침표가 2개 이상이면 첫 문장만)
+    const periodCount = (text.match(/\./g) || []).length;
+    if (periodCount > 1) {
+      const firstPeriod = text.indexOf('.');
+      if (firstPeriod > 0) {
+        text = text.slice(0, firstPeriod + 1);
       }
     }
-    // 이모지 확인
+    // 이모지 확인 (맨 마지막에 이모지 추가)
     if (!/\p{Emoji}/u.test(text)) {
       text = text.trim() + ' ☕';
     }
