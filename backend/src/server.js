@@ -38,11 +38,23 @@ app.post('/api/ai/recommendBreak', async (req, res) => {
   try {
     const { context, instructions } = req.body || {};
     const allowed = context?.constraints?.allowedDurations || [5];
-    // If frontend provided precise instructions, use them as-is.
+    
+    // 최적화: context 크기 줄이기 - 불필요한 중첩 제거 및 키 축약
+    const optimizedContext = {
+      wp: context?.profile?.workPatterns || [], // workPatterns 축약
+      hc: context?.profile?.healthConcerns || [], // healthConcerns 축약
+      pbt: context?.profile?.preferredBreakTypes || [], // preferredBreakTypes 축약
+      rh: (context?.recentHistory || []).slice(0, 3).map(h => ({ t: h.breakType, c: h.completed })), // 최근 3개만, 키 축약
+      t: context?.todos || {}, // todos 요약
+      qe: (context?.quickEdits || []).slice(0, 3), // 최근 3개만
+      c: context?.constraints || {}, // constraints
+    };
+    
+    // 최적화: instructions 간소화
     const sys = instructions && String(instructions).trim().length
       ? String(instructions)
-      : `당신은 브레이크 코치입니다. 다음 스키마로 JSON만 반환하세요: {"suggestions":[{id,type,duration,description?,name?,rationale?}]}. duration은 다음 중 하나만: ${allowed.join(',')}. 라이브러리에 매핑 가능한 id/type 사용.`;
-    const user = JSON.stringify(context || {});
+      : `브레이크 코치. JSON만: {"suggestions":[{id,type,duration,description}]}. duration:${allowed[0]}분. description:8~20자 한국어.`;
+    const user = JSON.stringify(optimizedContext);
     const started = Date.now();
     const text = await callGroqChat(
       [{ role: 'system', content: sys }, { role: 'user', content: user }],
