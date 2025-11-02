@@ -18,7 +18,50 @@ const GROQ_BASE_URL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/
 function clampText(s = '', min = 1, max = 50) {
   const t = (s || '').trim();
   if (t.length < min) return t.padEnd(min, ' ');
-  return t.slice(0, max);
+  if (t.length <= max) return t;
+  
+  // 최대 길이를 초과하는 경우, 문장 끝맺음 보장
+  let clamped = t.slice(0, max);
+  
+  // 이모지가 잘렸는지 확인 (이모지는 2바이트 이상)
+  const emojiRegex = /\p{Emoji}/gu;
+  const lastEmojiMatch = [...t.matchAll(emojiRegex)];
+  if (lastEmojiMatch.length > 0) {
+    const lastEmojiIndex = lastEmojiMatch[lastEmojiMatch.length - 1].index;
+    // 마지막 이모지가 잘렸으면 그 전까지만 자르기
+    if (lastEmojiIndex >= max - 5) {
+      clamped = t.slice(0, Math.min(max, lastEmojiIndex + 10)); // 이모지 이후 약간의 여유
+    }
+  }
+  
+  // 문장이 중간에 잘렸는지 확인하고 정리
+  // 마지막 문장 부호(., !, ?, ~) 또는 이모지로 끝나도록
+  const sentenceEndRegex = /[.!?~]\s*\p{Emoji}*\s*$/u;
+  if (!sentenceEndRegex.test(clamped)) {
+    // 중간에 잘렸으면 가장 가까운 문장 부호나 공백으로 자르기
+    const lastPeriod = clamped.lastIndexOf('.');
+    const lastExclamation = clamped.lastIndexOf('!');
+    const lastQuestion = clamped.lastIndexOf('?');
+    const lastEmoji = clamped.search(/\p{Emoji}/u);
+    const cutPoint = Math.max(lastPeriod, lastExclamation, lastQuestion, lastEmoji);
+    
+    if (cutPoint > max * 0.7) { // 70% 이상이면 그 지점에서 자르기
+      clamped = clamped.slice(0, cutPoint + 1);
+    } else {
+      // 그렇지 않으면 공백으로 자르기
+      const lastSpace = clamped.lastIndexOf(' ');
+      if (lastSpace > max * 0.7) {
+        clamped = clamped.slice(0, lastSpace);
+      }
+    }
+  }
+  
+  // 이모지가 없으면 추가 (timerDescription의 경우)
+  if (max > 15 && !emojiRegex.test(clamped)) {
+    clamped = clamped.trim() + ' ☕';
+  }
+  
+  return clamped.trim();
 }
 
 async function callGroqChat(messages, { max_tokens = 256, temperature = 0.6 } = {}) {
@@ -97,10 +140,11 @@ app.post('/api/ai/dailyQuote', async (req, res) => {
   let sys;
   if (isTimerDescription) {
     // 집중 타이머 설명용 프롬프트: 존대어, 워크라이프밸런스 톤, 휴식의 중요성 강조
-    sys = `${minChars}~${maxChars}자 한국어 한 줄, 존대어 사용. 워크라이프밸런스와 휴식 심리 지도사처럼 따뜻하고 전문적인 문투. 일하면서 휴식을 취하는 것이 중요하다는 내용을 반드시 포함. 이모지 포함. 한국어 맞춤법 정확. 예:${seed || '쉬면서 일해야 건강하고 행복하세요 ☕'}`;
+    // 완전한 문장으로 끝맺고, 맨 마지막에 이모지가 반드시 포함되도록 지시
+    sys = `${minChars}~${maxChars}자 한국어 완전한 문장 하나, 존대어 사용. 워크라이프밸런스와 휴식 심리 지도사처럼 따뜻하고 전문적인 문투. 일하면서 휴식을 취하는 것이 중요하다는 내용을 반드시 포함. 문장 끝맺음(., !, ? 등)이 반드시 있고, 맨 마지막에 문맥에 맞는 이모지를 반드시 포함. 한국어 맞춤법 정확. 예:${seed || '쉬면서 일해야 건강하고 행복하세요 ☕'}`;
   } else {
     // dailyAffirmation용 프롬프트 (기존 유지)
-    sys = `${minChars}~${maxChars}자 한국어 한 줄, 이모지 포함. 동기부여. 예:${seed}`;
+    sys = `${minChars}~${maxChars}자 한국어 한 줄, 완전한 문장으로 끝맺고 맨 마지막에 이모지 포함. 동기부여. 예:${seed}`;
   }
   
   // 최적화: context 크기 줄이기
