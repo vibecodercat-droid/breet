@@ -90,8 +90,19 @@ app.post('/api/ai/dailyQuote', async (req, res) => {
   const minChars = Number(constraints.minChars ?? 6);
   const maxChars = Number(constraints.maxChars ?? 10);
   const seed = constraints.seedPhrase || '';
-  // 최적화: system prompt 간소화
-  const sys = `${minChars}~${maxChars}자 한국어 한 줄, 이모지 포함. 동기부여. 예:${seed}`;
+  
+  // timerDescription인지 확인 (maxChars > 15면 timerDescription으로 간주)
+  const isTimerDescription = maxChars > 15;
+  
+  let sys;
+  if (isTimerDescription) {
+    // 집중 타이머 설명용 프롬프트: 존대어, 워크라이프밸런스 톤, 휴식의 중요성 강조
+    sys = `${minChars}~${maxChars}자 한국어 한 줄, 존대어 사용. 워크라이프밸런스와 휴식 심리 지도사처럼 따뜻하고 전문적인 문투. 일하면서 휴식을 취하는 것이 중요하다는 내용을 반드시 포함. 이모지 포함. 한국어 맞춤법 정확. 예:${seed || '쉬면서 일해야 건강하고 행복하세요 ☕'}`;
+  } else {
+    // dailyAffirmation용 프롬프트 (기존 유지)
+    sys = `${minChars}~${maxChars}자 한국어 한 줄, 이모지 포함. 동기부여. 예:${seed}`;
+  }
+  
   // 최적화: context 크기 줄이기
   const optimizedContext = {
     wp: context?.workPatterns?.slice(0, 2) || [],
