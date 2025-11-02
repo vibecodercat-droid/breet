@@ -9,6 +9,15 @@ const MODE_PRESETS = {
 let selectedMode = 'pomodoro';
 let currentDay = new Date();
 
+// 브레이크 선택 카드 상태
+let allBreakCandidates = [];
+let currentBreakPage = 0;
+let selectedBreakIndex = 0;
+let currentBreakSessionId = null;
+let breakSelectionPayload = null;
+let isLoadingBreaks = false;
+const maxBreakPages = 5;
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Onboarding gate: if not completed, redirect to onboarding page
   try {
@@ -63,6 +72,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderDaySummary();
   refreshCountdown();
   setInterval(refreshCountdown, 1000);
+  
+  // 브레이크 선택 카드 초기화
+  initBreakSelectionCard();
+  
+  // 메시지 리스너: background에서 카드 펼침 요청
+  chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
+    if (message.type === 'breet:expandBreakSelection') {
+      expandBreakSelectionCard(message.payload);
+      return true;
+    }
+    return false;
+  });
+  
+  // 세션 상태 구독: WORK_ENDING일 때 자동 펼침
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.sessionState?.newValue) {
+      const newPhase = changes.sessionState.newValue.phase;
+      if (newPhase === 'work_ending') {
+        setTimeout(() => expandBreakSelectionCard(), 100);
+      } else if (newPhase === 'break' || newPhase === 'idle') {
+        collapseBreakSelectionCard();
+      }
+    }
+  });
 });
 
 async function refreshAuthUI() {
@@ -381,5 +414,266 @@ async function renderDaySummary() {
   h = h % 12; if (h === 0) h = 12; const hh12 = String(h).padStart(2,'0');
   const action = last.breakName || last.breakType || '';
   el.textContent = `${label} 실행 · (${action}) · ${ampm} ${hh12}:${mm}`;
+}
+
+// 브레이크 선택 카드 관련 함수들
+async function initBreakSelectionCard() {
+  const collapsed = document.getElementById('breakSelectionCollapsed');
+  const expanded = document.getElementById('breakSelectionExpanded');
+  const closeBtn = document.getElementById('breakSelectionClose');
+  const otherBtn = document.getElementById('breakOtherSuggestion');
+  const skipBtn = document.getElementById('breakSkip');
+  if (!collapsed || !expanded) return;
+  
+  // 접힘 상태 클릭 시 펼침
+  collapsed.addEventListener('click', () => expandBreakSelectionCard());
+  
+  // 닫기 버튼
+  if (closeBtn) closeBtn.addEventListener('click', () => collapseBreakSelectionCard());
+  
+  // 다른 제안 버튼
+  if (otherBtn) otherBtn.addEventListener('click', () => loadNewBreakPage());
+  
+  // 건너뛰기 버튼
+  if (skipBtn) skipBtn.addEventListener('click', async () => {
+    await chrome.runtime.sendMessage({ type: 'breet:skipBreak' });
+    collapseBreakSelectionCard();
+  });
+  
+  // 초기 상태 확인 및 업데이트
+  const { sessionState, prebreakPayload } = await chrome.storage.local.get(['sessionState', 'prebreakPayload']);
+  if (sessionState?.phase === 'work_ending' || sessionState?.phase === 'selecting') {
+    if (prebreakPayload) breakSelectionPayload = prebreakPayload;
+    await expandBreakSelectionCard();
+  } else {
+    // IDLE/WORK 중: 접힌 상태로 표시 (카드는 항상 표시)
+    const card = document.getElementById('breakSelectionCard');
+    if (card) {
+      card.style.maxHeight = 'auto';
+      card.style.opacity = '1';
+      card.classList.remove('expanded');
+      const collapsed = document.getElementById('breakSelectionCollapsed');
+      const expanded = document.getElementById('breakSelectionExpanded');
+      if (collapsed) collapsed.style.display = 'block';
+      if (expanded) expanded.classList.add('hidden');
+    }
+  }
+}
+
+function toggleBreakSelectionCard(forceExpand) {
+  const card = document.getElementById('breakSelectionCard');
+  if (!card) return;
+  if (forceExpand || !card.classList.contains('expanded')) {
+    expandBreakSelectionCard();
+  } else {
+    collapseBreakSelectionCard();
+  }
+}
+
+async function expandBreakSelectionCard(payload) {
+  const card = document.getElementById('breakSelectionCard');
+  const collapsed = document.getElementById('breakSelectionCollapsed');
+  const expanded = document.getElementById('breakSelectionExpanded');
+  if (!card || !collapsed || !expanded) return;
+  
+  // 페이로드가 있으면 세션 ID 추출 및 저장
+  if (payload) {
+    currentBreakSessionId = payload.sessionId || null;
+    breakSelectionPayload = payload;
+  } else {
+    // 페이로드가 없으면 storage에서 가져오기
+    const { prebreakPayload, sessionState } = await chrome.storage.local.get(['prebreakPayload', 'sessionState']);
+    if (prebreakPayload) {
+      breakSelectionPayload = prebreakPayload;
+    }
+  }
+  
+  // 카드 표시 및 펼침
+  card.style.maxHeight = '85vh';
+  card.style.opacity = '1';
+  card.classList.add('expanded');
+  collapsed.style.display = 'none';
+  expanded.classList.remove('hidden');
+  
+  // 후보 로딩
+  await loadBreakCandidates();
+  renderBreakCandidates();
+}
+
+function collapseBreakSelectionCard() {
+  const card = document.getElementById('breakSelectionCard');
+  const collapsed = document.getElementById('breakSelectionCollapsed');
+  const expanded = document.getElementById('breakSelectionExpanded');
+  if (!card || !collapsed || !expanded) return;
+  
+  card.style.maxHeight = '0';
+  card.style.opacity = '0';
+  card.classList.remove('expanded');
+  collapsed.style.display = 'block';
+  expanded.classList.add('hidden');
+}
+
+async function loadBreakCandidates() {
+  try {
+    const candKey = currentBreakSessionId ? `pendingBreakCandidates_${currentBreakSessionId}` : 'pendingBreakCandidates';
+    const allKey = currentBreakSessionId ? `allBreakCandidates_${currentBreakSessionId}` : 'allBreakCandidates';
+    const { [candKey]: pendingCandidates = [], [allKey]: persisted = [] } = await chrome.storage.local.get([candKey, allKey]);
+    
+    if (Array.isArray(persisted) && persisted.length >= 3) {
+      allBreakCandidates = persisted;
+      currentBreakPage = 0;
+      return;
+    }
+    
+    if (pendingCandidates && pendingCandidates.length >= 3) {
+      allBreakCandidates = pendingCandidates.slice(0, 3);
+      currentBreakPage = 0;
+      const setObj = {}; setObj[allKey] = allBreakCandidates;
+      await chrome.storage.local.set(setObj);
+      return;
+    }
+    
+    // 후보가 없으면 새로 요청
+    await loadNewBreakPage();
+  } catch (e) {
+    console.error('[BreakSelection] loadBreakCandidates error', e);
+  }
+}
+
+function renderBreakCandidates() {
+  const list = document.getElementById('breakCandidateList');
+  const countEl = document.getElementById('breakCandidateCount');
+  const remainingEl = document.getElementById('breakRemainingCount');
+  if (!list) return;
+  
+  const startIdx = currentBreakPage * 3;
+  const pageItems = allBreakCandidates.slice(startIdx, startIdx + 3);
+  
+  list.innerHTML = '';
+  if (!pageItems.length) {
+    list.innerHTML = '<div class="text-center text-gray-500 py-8">추천을 불러오는 중...</div>';
+    return;
+  }
+  
+  pageItems.forEach((c, i) => {
+    const absIdx = startIdx + i;
+    const isSelected = absIdx === selectedBreakIndex;
+    const div = document.createElement('div');
+    div.className = `p-4 rounded-lg cursor-pointer transition-colors min-h-[44px] flex items-center ${isSelected ? 'bg-blue-500 text-white border-2 border-blue-600' : 'bg-white border border-gray-200 hover:border-blue-300'}`;
+    div.addEventListener('click', async () => {
+      selectedBreakIndex = absIdx;
+      await onBreakCandidateSelected();
+    });
+    
+    const content = document.createElement('div');
+    content.className = 'flex-1';
+    content.innerHTML = `<div class="font-semibold text-base mb-1">${c?.name || ''}</div><div class="text-xs ${isSelected ? 'text-blue-100' : 'text-gray-500'}">${c?.howTo || ''}</div>`;
+    div.appendChild(content);
+    
+    list.appendChild(div);
+  });
+  
+  // 후보 개수 업데이트
+  if (countEl) countEl.textContent = `(${allBreakCandidates.length})`;
+  
+  // 남은 제안 횟수 업데이트
+  if (remainingEl) {
+    const metaKey = currentBreakSessionId ? `prebreakMeta_${currentBreakSessionId}` : 'prebreakMeta';
+    chrome.storage.local.get([metaKey], ({ [metaKey]: meta = {} }) => {
+      const used = meta.otherUsed || 0;
+      const max = meta.maxOther || 4;
+      remainingEl.textContent = `${max - used}/${max}`;
+    });
+  }
+}
+
+async function loadNewBreakPage() {
+  if (isLoadingBreaks) return;
+  isLoadingBreaks = true;
+  updateBreakButtons();
+  
+  try {
+    const excludeIds = allBreakCandidates.map(c => c.id);
+    const metaKey = currentBreakSessionId ? `prebreakMeta_${currentBreakSessionId}` : 'prebreakMeta';
+    const { [metaKey]: meta = {} } = await chrome.storage.local.get(metaKey);
+    const breakMinutes = meta.breakMinutes || breakSelectionPayload?.breakMinutes || 5;
+    
+    const reqPayload = currentBreakSessionId ? { sessionId: currentBreakSessionId, excludeIds } : { breakMinutes, excludeIds };
+    
+    await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: 'breet:requestNewBreaks', payload: reqPayload }, (resp) => {
+        if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+        if (!resp || !resp.ok) return reject(new Error(resp?.error || 'failed'));
+        resolve();
+      });
+    });
+    
+    const candKey = currentBreakSessionId ? `pendingBreakCandidates_${currentBreakSessionId}` : 'pendingBreakCandidates';
+    const allKey = currentBreakSessionId ? `allBreakCandidates_${currentBreakSessionId}` : 'allBreakCandidates';
+    const { [candKey]: pendingCandidates = [] } = await chrome.storage.local.get(candKey);
+    
+    if (!Array.isArray(pendingCandidates) || pendingCandidates.length < 3) {
+      throw new Error('Not enough new candidates');
+    }
+    
+    allBreakCandidates = [...allBreakCandidates, ...pendingCandidates.slice(0, 3)];
+    const setObj = {}; setObj[allKey] = allBreakCandidates;
+    await chrome.storage.local.set(setObj);
+    
+    currentBreakPage++;
+    renderBreakCandidates();
+  } catch (e) {
+    console.error('[BreakSelection] loadNewBreakPage error', e);
+    alert('새로운 추천을 불러오는데 실패했습니다.');
+  } finally {
+    isLoadingBreaks = false;
+    updateBreakButtons();
+  }
+}
+
+function updateBreakButtons() {
+  const otherBtn = document.getElementById('breakOtherSuggestion');
+  const confirmBtn = document.getElementById('breakSelectionConfirm');
+  if (otherBtn) {
+    if (isLoadingBreaks) {
+      otherBtn.textContent = '생성 중...';
+      otherBtn.disabled = true;
+    } else {
+      otherBtn.textContent = '다른 제안 받기';
+      otherBtn.disabled = false;
+    }
+  }
+}
+
+// 후보 선택 시 타이머 시작
+async function onBreakCandidateSelected() {
+  if (allBreakCandidates.length === 0 || selectedBreakIndex < 0 || selectedBreakIndex >= allBreakCandidates.length) {
+    // 첫 선택이면 첫 번째 후보를 선택
+    if (allBreakCandidates.length > 0) {
+      selectedBreakIndex = 0;
+    } else {
+      return;
+    }
+  }
+  
+  const selected = allBreakCandidates[selectedBreakIndex];
+  
+  // 선택된 브레이크 저장
+  const pendingKey = currentBreakSessionId ? `pendingBreak_${currentBreakSessionId}` : 'pendingBreak';
+  await chrome.storage.local.set({ [pendingKey]: selected, pendingBreak: selected });
+  
+  // 세션 상태 확인
+  const { sessionState } = await chrome.storage.local.get('sessionState');
+  
+  if (sessionState?.phase === 'work_ending') {
+    // WORK_ENDING 단계: 브레이크 타이머만 시작
+    await chrome.runtime.sendMessage({ type: 'breet:startBreakTimer' });
+  } else if (sessionState?.phase === 'selecting' && breakSelectionPayload) {
+    // SELECTING 단계: 작업 타이머 시작
+    await chrome.runtime.sendMessage({ type: 'breet:startTimer', payload: breakSelectionPayload });
+  }
+  
+  // 카드 닫기
+  collapseBreakSelectionCard();
 }
 

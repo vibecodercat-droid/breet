@@ -1,3 +1,9 @@
 /* Minimal adjustments on top of Tailwind */
 html, body { min-width: 320px; }
 
+/* 브레이크 선택 카드 펼침 애니메이션 */
+#breakSelectionCard.expanded {
+  max-height: 85vh !important;
+  opacity: 1 !important;
+}
+

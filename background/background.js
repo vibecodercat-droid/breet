@@ -108,6 +108,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     handleBreakCompleted(message.payload).then(() => sendResponse({ ok: true })).catch((e)=>sendResponse({ ok:false, error:String(e)}));
     return true;
   }
+  if (message.type === 'breet:startBreakTimer') {
+    startBreakTimer().then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
+  if (message.type === 'breet:skipBreak') {
+    stopAllTimers().then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
 });
 
 async function startWorkTimer(mode, workMinutes = 25, breakMinutes = 5) {
@@ -300,10 +308,8 @@ async function openPreBreakSelection(payload) {
     pendingBreak: rec,
     [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: payload?.breakMinutes || 5 }
   });
-  // 휴식시간에 따라 전용 팝업 파일 선택(동일 디자인, 파일만 분리)
-  const page = (payload?.breakMinutes === 10) ? 'break-selection-10.html' : (payload?.breakMinutes === 3 ? 'break-selection-3.html' : 'break-selection-5.html');
-  const url = chrome.runtime.getURL(`pages/${page}?sid=${sessionId}`);
-  chrome.windows.create({ url, type: 'popup', width: 450, height: 500 });
+  // 팝업 대신 메시지 전송하여 인라인 카드 펼침
+  chrome.runtime.sendMessage({ type: 'breet:expandBreakSelection', payload: { ...payload, sessionId } }).catch(() => {});
 }
 
 async function handleWorkEnd() {
@@ -315,11 +321,21 @@ async function handleWorkEnd() {
     const now = Date.now();
     await chrome.storage.local.set({ lastWorkEndTs: now, [STORAGE_KEYS.SESSION]: { ...sessionState, phase: PHASES.WORK_ENDING, startTs: now, endTs: now + 10000 } });
     await chrome.alarms.create(ALARM_NAMES.TOAST, { when: Date.now() + 10000 });
+    // 인라인 카드 자동 펼침 요청
+    chrome.runtime.sendMessage({ type: 'breet:expandBreakSelection', payload: { sessionId: null } }).catch(() => {});
   } catch (e) { console.error('[Timer] handleWorkEnd error', e); }
 }
 
 async function handleToastEnd() {
-  try { await startBreakTimer(); } catch (e) { console.error('[Timer] handleToastEnd error', e); }
+  try {
+    // 사용자가 브레이크를 선택했는지 확인
+    const { pendingBreak, sessionState } = await chrome.storage.local.get(['pendingBreak', STORAGE_KEYS.SESSION]);
+    // WORK_ENDING 단계에서 사용자가 브레이크를 선택했으면 타이머 시작
+    if (sessionState?.phase === PHASES.WORK_ENDING && pendingBreak) {
+      await startBreakTimer();
+    }
+    // 선택하지 않았으면 카드는 그대로 유지 (사용자가 선택할 때까지 대기)
+  } catch (e) { console.error('[Timer] handleToastEnd error', e); }
 }
 
 async function handleBreakEnd() {
