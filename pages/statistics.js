@@ -165,27 +165,20 @@ async function renderAttendanceCalendar() {
     }
   }
   
-  // 요일 헤더 (별도 그리드)
-  const headerGrid = document.createElement('div');
-  headerGrid.className = 'grid grid-cols-7 gap-2 mb-2';
+  // 요일 헤더 (원래 구조로 복원)
   const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
   dayLabels.forEach(label => {
     const header = document.createElement('div');
     header.className = 'text-xs font-semibold text-gray-600 text-center';
     header.textContent = label;
-    headerGrid.appendChild(header);
+    calendar.appendChild(header);
   });
-  calendar.appendChild(headerGrid);
-  
-  // 날짜 그리드
-  const dateGrid = document.createElement('div');
-  dateGrid.className = 'grid grid-cols-7 gap-2';
   
   // 각 날짜에 대해 빈 칸 또는 데이터 추가 (첫 번째 날의 요일에 맞춰 시작)
   const firstDay = days[0].getDay();
   for (let i = 0; i < firstDay; i++) {
     const empty = document.createElement('div');
-    dateGrid.appendChild(empty);
+    calendar.appendChild(empty);
   }
   
   // 날짜 셀
@@ -205,9 +198,8 @@ async function renderAttendanceCalendar() {
     }`;
     cell.textContent = d.getDate();
     cell.title = `${key}: ${completed ? '완료' : hasSession ? '시작' : '없음'}`;
-    dateGrid.appendChild(cell);
+    calendar.appendChild(cell);
   });
-  calendar.appendChild(dateGrid);
 }
 
 // 실시간 업데이트 리스너
