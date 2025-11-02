@@ -28,46 +28,57 @@ function clampText(s = '', min = 1, max = 50) {
     if (max > 15 && !emojiAllRegex.test(t)) {
       // timerDescription인데 이모지가 없으면 추가
       const trimmed = t.trim();
-      // 문장 끝맺음 확인
-      if (!/[.!?]$/.test(trimmed)) {
-        return trimmed + '. ☕';
+      // ~요/~세요/~해요 패턴 확인
+      if (!/(요|세요|해요|되요|돼요|해요요)$/.test(trimmed)) {
+        // ~요 패턴이 없으면 추가하되, 마지막이 동사형이면 ~요 추가
+        if (/(다|아|어|해|되|돼|야|지)$/.test(trimmed)) {
+          const withoutEnd = trimmed.replace(/(다|아|어|해|되|돼|야|지)$/, '');
+          if (!/(요|세요|해요)$/.test(withoutEnd)) {
+            return withoutEnd + '요 ☕';
+          }
+        }
+        return trimmed + ' ☕';
       }
       return trimmed + ' ☕';
-    }
-    // 문장 끝맺음 확인
-    if (!/[.!?~]$/.test(t)) {
-      return t.trim() + (max > 15 ? '. ☕' : '.');
     }
     return t;
   }
   
-  // 최대 길이 초과: 완전한 문장과 이모지 보장
-  // 패턴 1: "문장끝 이모지" 찾기 (가장 이상적)
-  const sentenceEndPattern = /[.!?~]/g;
-  const endMatches = [...t.matchAll(sentenceEndPattern)];
-  const emojiMatches = [...t.matchAll(emojiAllRegex)];
+  // 최대 길이 초과: ~요 패턴과 이모지 보장
+  // 패턴 1: "~요 이모지" 또는 "~세요 이모지" 찾기 (가장 이상적)
+  const koreanEndPattern = /(요|세요|해요|되요|돼요)\s*\p{Emoji}*/gu;
+  const koreanEndMatches = [...t.matchAll(koreanEndPattern)];
   
   let bestEnd = -1;
   
-  // 문장끝 + 이모지 조합 찾기
-  for (let i = endMatches.length - 1; i >= 0; i--) {
-    const endIdx = endMatches[i].index + 1;
-    if (endIdx > max) continue;
-    
-    // 이 문장끝 이후에 이모지가 있는지 확인
-    const afterEnd = t.slice(endIdx);
-    const emojiInAfter = afterEnd.search(emojiAllRegex);
-    if (emojiInAfter !== -1) {
-      const emojiEnd = endIdx + emojiInAfter + 1; // 이모지 길이 대략 1-2
-      if (emojiEnd <= max + 5) { // 약간의 여유
-        bestEnd = Math.min(max, emojiEnd + 2);
+  // ~요 + 이모지 조합 찾기
+  for (let i = koreanEndMatches.length - 1; i >= 0; i--) {
+    const match = koreanEndMatches[i];
+    const endIdx = match.index + match[0].length;
+    if (endIdx <= max + 3) { // 약간의 여유
+      bestEnd = endIdx;
+      break;
+    }
+  }
+  
+  // 패턴 2: ~요만 (이모지는 나중에 추가)
+  if (bestEnd === -1) {
+    const koreanEndOnly = /(요|세요|해요|되요|돼요)/g;
+    const endOnlyMatches = [...t.matchAll(koreanEndOnly)];
+    for (let i = endOnlyMatches.length - 1; i >= 0; i--) {
+      const match = endOnlyMatches[i];
+      const endIdx = match.index + match[0].length;
+      if (endIdx <= max) {
+        bestEnd = endIdx;
         break;
       }
     }
   }
   
-  // 패턴 2: 문장끝만 (이모지는 나중에 추가)
+  // 패턴 3: 문장 부호(. ! ?)
   if (bestEnd === -1) {
+    const sentenceEndPattern = /[.!?]/g;
+    const endMatches = [...t.matchAll(sentenceEndPattern)];
     for (let i = endMatches.length - 1; i >= 0; i--) {
       const endIdx = endMatches[i].index + 1;
       if (endIdx <= max) {
@@ -77,26 +88,35 @@ function clampText(s = '', min = 1, max = 50) {
     }
   }
   
-  // 패턴 3: 공백으로 자르기
+  // 패턴 4: 공백으로 자르기 (최후의 수단)
   if (bestEnd === -1) {
     const lastSpace = t.lastIndexOf(' ', max);
     if (lastSpace > max * 0.6) {
       bestEnd = lastSpace;
     } else {
+      // 그냥 자르되 ~요로 끝나도록 처리
       bestEnd = max;
     }
   }
   
   let clamped = t.slice(0, bestEnd).trim();
   
-  // 문장 끝맺음 확인 및 추가
-  if (!/[.!?~]$/.test(clamped)) {
-    clamped += '.';
-  }
-  
-  // 이모지 확인 및 추가 (timerDescription의 경우)
-  if (max > 15 && !emojiAllRegex.test(clamped)) {
-    clamped += ' ☕';
+  // ~요 패턴 확인 및 추가 (timerDescription의 경우)
+  if (max > 15) {
+    // ~요 패턴이 없으면 추가
+    if (!/(요|세요|해요|되요|돼요)$/.test(clamped)) {
+      // 마지막이 동사형이면 ~요로 변환
+      if (/(다|아|어|해|되|돼|야|지)$/.test(clamped)) {
+        clamped = clamped.replace(/(다|아|어|해|되|돼|야|지)$/, '') + '요';
+      } else {
+        clamped += '요';
+      }
+    }
+    
+    // 이모지 확인 및 추가
+    if (!emojiAllRegex.test(clamped)) {
+      clamped += ' ☕';
+    }
   }
   
   return clamped.trim();
@@ -179,7 +199,7 @@ app.post('/api/ai/dailyQuote', async (req, res) => {
   if (isTimerDescription) {
     // 집중 타이머 설명용 프롬프트: 웰니스 코치 톤, 쉬는 것의 효과 강조
     // 완전한 문장으로 끝맺고, 맨 마지막에 이모지가 반드시 포함되도록 지시
-    sys = `${minChars}~${maxChars}자 한국어 완전한 문장 하나만 출력. 여러 문장 절대 금지. 한 문장만. 존대어 사용. 웰니스 코치처럼 따뜻하고 격려하는 문투. 쉬면서 일하는 것의 효과를 강조: "쉬면서 일하면 효율이 오른다", "오늘도 쉬면서 일하세요", "적절한 휴식이 생산성을 높인다" 등의 메시지를 포함. 휴식이 건강과 생산성에 도움이 된다는 것을 명확히 전달. 문장 끝맺음(., !, ? 등)이 반드시 있고, 맨 마지막에 문맥에 맞는 이모지를 반드시 포함(예: ☕, 😊, 💪, 🌿 등). 한국어 맞춤법 정확. 예:${seed || '쉬면서 일하면 효율이 올라가요 ☕'}`;
+    sys = `${minChars}~${maxChars}자 한국어 완전한 문장 하나만 출력. 여러 문장 절대 금지. 한 문장만. 존대어 사용(~요/~세요/~해요로 끝맺음). 웰니스 코치처럼 따뜻하고 격려하는 문투. 쉬면서 일하는 것의 효과를 강조: "쉬면서 일하면 효율이 오른다", "오늘도 쉬면서 일하세요", "적절한 휴식이 생산성을 높인다" 등의 메시지를 포함. 휴식이 건강과 생산성에 도움이 된다는 것을 명확히 전달. 문장은 반드시 ~요/~세요/~해요로 끝맺고, 그 뒤에 문맥에 맞는 이모지를 반드시 포함(예: ☕, 😊, 💪, 🌿 등). 한국어 맞춤법이 완벽해야 함. 틀린 맞춤법, 이상한 문자 조합, 띄어쓰기 오류 절대 금지. 예:${seed || '쉬면서 일하면 효율이 올라가요 ☕'}`;
   } else {
     // dailyAffirmation용 프롬프트 (기존 유지)
     sys = `${minChars}~${maxChars}자 한국어 한 줄, 완전한 문장으로 끝맺고 맨 마지막에 이모지 포함. 동기부여. 예:${seed}`;
