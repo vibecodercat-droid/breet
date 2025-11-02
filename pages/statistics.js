@@ -28,16 +28,27 @@ async function refreshSessionStats() {
 }
 
 // 투두리스트 기준 통계
+// 기준: todosByDate[YYYY-MM-DD]에서 오늘 날짜의 투두 배열
+// - 오늘 완료: completed === true인 항목 수
+// - 오늘 전체: 전체 투두 항목 수
+// - 완료율: (완료 / 전체) * 100
 async function refreshTodoStats() {
-  const dk = dateKey();
+  const dk = dateKey(); // 오늘 날짜 (YYYY-MM-DD 형식)
   const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
   const todos = Array.isArray(todosByDate[dk]) ? todosByDate[dk] : [];
-  const done = todos.filter((t) => t.completed).length;
+  const done = todos.filter((t) => t.completed === true).length;
   const total = todos.length;
   const rate = total ? Math.round((done / total) * 100) : 0;
-  document.getElementById('todoDone').textContent = String(done);
-  document.getElementById('todoTotal').textContent = String(total);
-  document.getElementById('todoRate').textContent = `${rate}%`;
+  
+  const doneEl = document.getElementById('todoDone');
+  const totalEl = document.getElementById('todoTotal');
+  const rateEl = document.getElementById('todoRate');
+  
+  if (doneEl) doneEl.textContent = String(done);
+  if (totalEl) totalEl.textContent = String(total);
+  if (rateEl) rateEl.textContent = `${rate}%`;
+  
+  console.log('[Stats] Todo stats refreshed:', { dk, done, total, rate });
 }
 
 // 주간 막대그래프 (세션 + 투두 분리)
@@ -179,22 +190,33 @@ async function renderAttendanceCalendar() {
 
 // 실시간 업데이트 리스너
 function setupRealtimeUpdates() {
+  console.log('[Stats] Setting up real-time updates');
+  
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
     
+    console.log('[Stats] Storage changed:', Object.keys(changes));
+    
     // breakHistory 변경 시
     if (changes.breakHistory) {
+      console.log('[Stats] BreakHistory changed, refreshing session stats');
       refreshSessionStats();
       renderWeekly();
       renderAttendanceCalendar();
     }
     
-    // todosByDate 변경 시
+    // todosByDate 변경 시 (추가, 완료 토글, 삭제, 미루기 모두 포함)
     if (changes.todosByDate) {
+      console.log('[Stats] TodosByDate changed, refreshing todo stats');
       refreshTodoStats();
       renderWeekly();
     }
   });
+  
+  // 주기적으로도 체크 (1초마다, 안전장치)
+  setInterval(() => {
+    refreshTodoStats();
+  }, 1000);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
