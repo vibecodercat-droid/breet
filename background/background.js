@@ -295,21 +295,38 @@ async function playSound(path) {
 }
 
 async function openPreBreakSelection(payload) {
-  // 이전 후보/선택값 초기화 후, 현재 모드의 분수로 새 후보 생성
+  // 이전 세션 데이터 완전히 정리
+  const allKeys = await chrome.storage.local.get(null);
+  const keysToRemove = [];
+  for (const key in allKeys) {
+    if (key.startsWith('prebreakMeta_') || key.startsWith('pendingBreak_') || key.startsWith('pendingBreakCandidates_') || key.startsWith('allBreakCandidates_')) {
+      keysToRemove.push(key);
+    }
+  }
+  if (keysToRemove.length > 0) {
+    await chrome.storage.local.remove(keysToRemove);
+  }
+  
+  // 새로운 세션 시작
   const sessionId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
   // breakMinutes는 payload에서 명확히 가져오기 (5, 10, 3 중 하나)
   const breakMinutes = payload?.breakMinutes || 5;
-  await chrome.storage.local.set({ pendingBreak: null, pendingBreakCandidates: [] });
+  
   // 올바른 breakMinutes로 추천 생성
   const rec = await recommendNextBreakWithAI(breakMinutes);
   // 세션별 네임스페이스에 복사 저장
   const { pendingBreakCandidates = [] } = await chrome.storage.local.get('pendingBreakCandidates');
-  const ns = {}; ns[`pendingBreak_${sessionId}`] = rec; ns[`pendingBreakCandidates_${sessionId}`] = pendingBreakCandidates; ns[`prebreakMeta_${sessionId}`] = { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes };
+  const ns = {}; 
+  ns[`pendingBreak_${sessionId}`] = rec; 
+  ns[`pendingBreakCandidates_${sessionId}`] = pendingBreakCandidates; 
+  ns[`allBreakCandidates_${sessionId}`] = pendingBreakCandidates; // 초기 후보도 저장
+  ns[`prebreakMeta_${sessionId}`] = { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes };
   await chrome.storage.local.set(ns);
   await chrome.storage.local.set({
     prebreakPayload: { ...payload, breakMinutes: breakMinutes },
     prebreakMeta: { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes },
     pendingBreak: rec,
+    pendingBreakCandidates: pendingBreakCandidates,
     [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: breakMinutes }
   });
   // 팝업 대신 메시지 전송하여 인라인 카드 펼침 (세션 ID 포함)

@@ -49,24 +49,39 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 타이머 모드 클릭 시 즉시 인라인 카드로 휴식 추천 표시
       const preset = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
       const payload = { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest };
+      
+      // 이전 세션 상태 초기화
+      allBreakCandidates = [];
+      currentBreakPage = 0;
+      selectedBreakIndex = 0;
+      currentBreakSessionId = null;
+      breakSelectionPayload = null;
+      
       // 백그라운드에 추천 요청 (완료 후 background에서 메시지로 카드 펼침 요청)
       chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload }, async (response) => {
         // 추천 완료 후 약간의 지연을 두고 카드 펼침 (storage 동기화 대기)
         setTimeout(async () => {
-          const { prebreakPayload, sessionState } = await chrome.storage.local.get(['prebreakPayload', 'sessionState']);
-          if (prebreakPayload) {
-            // 세션 ID 찾기
+          const { prebreakPayload } = await chrome.storage.local.get(['prebreakPayload']);
+          if (prebreakPayload && prebreakPayload.breakMinutes === payload.breakMinutes) {
+            // 세션 ID 찾기 (가장 최근 것)
             const keys = await chrome.storage.local.get(null);
             let foundSessionId = null;
+            let latestTs = 0;
             for (const key in keys) {
               if (key.startsWith('prebreakMeta_')) {
-                foundSessionId = key.replace('prebreakMeta_', '');
-                break;
+                const sid = key.replace('prebreakMeta_', '');
+                const ts = parseInt(sid.split('_')[0]) || 0;
+                if (ts > latestTs) {
+                  latestTs = ts;
+                  foundSessionId = sid;
+                }
               }
             }
-            await expandBreakSelectionCard({ ...prebreakPayload, sessionId: foundSessionId });
+            if (foundSessionId) {
+              await expandBreakSelectionCard({ ...prebreakPayload, sessionId: foundSessionId, breakMinutes: payload.breakMinutes });
+            }
           }
-        }, 200);
+        }, 300);
       });
     });
   });
@@ -79,23 +94,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     selectedMode = 'quick';
     setActiveModeButton(null);
     const payload = { mode: 'quick', workMinutes: 1, breakMinutes: 1 };
+    
+    // 이전 세션 상태 초기화
+    allBreakCandidates = [];
+    currentBreakPage = 0;
+    selectedBreakIndex = 0;
+    currentBreakSessionId = null;
+    breakSelectionPayload = null;
+    
     chrome.runtime.sendMessage({ type: 'breet:prebreakSelect', payload }, async () => {
       // 추천 완료 후 약간의 지연을 두고 카드 펼침 (storage 동기화 대기)
       setTimeout(async () => {
-        const { prebreakPayload, sessionState } = await chrome.storage.local.get(['prebreakPayload', 'sessionState']);
-        if (prebreakPayload) {
-          // 세션 ID 찾기
+        const { prebreakPayload } = await chrome.storage.local.get(['prebreakPayload']);
+        if (prebreakPayload && prebreakPayload.breakMinutes === payload.breakMinutes) {
+          // 세션 ID 찾기 (가장 최근 것)
           const keys = await chrome.storage.local.get(null);
           let foundSessionId = null;
+          let latestTs = 0;
           for (const key in keys) {
             if (key.startsWith('prebreakMeta_')) {
-              foundSessionId = key.replace('prebreakMeta_', '');
-              break;
+              const sid = key.replace('prebreakMeta_', '');
+              const ts = parseInt(sid.split('_')[0]) || 0;
+              if (ts > latestTs) {
+                latestTs = ts;
+                foundSessionId = sid;
+              }
             }
           }
-          await expandBreakSelectionCard({ ...prebreakPayload, sessionId: foundSessionId });
+          if (foundSessionId) {
+            await expandBreakSelectionCard({ ...prebreakPayload, sessionId: foundSessionId, breakMinutes: payload.breakMinutes });
+          }
         }
-      }, 200);
+      }, 300);
     });
   });
   document.getElementById('addTodo').addEventListener('click', onAddTodo);
@@ -116,6 +146,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 메시지 리스너: background에서 카드 펼침 요청
   chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
     if (message.type === 'breet:expandBreakSelection') {
+      // 이전 세션 상태 초기화
+      allBreakCandidates = [];
+      currentBreakPage = 0;
+      selectedBreakIndex = 0;
+      // 메시지에서 받은 payload를 바로 사용
       expandBreakSelectionCard(message.payload).then(() => {
         if (_sendResponse) _sendResponse({ ok: true });
       }).catch(() => {
@@ -521,6 +556,10 @@ async function expandBreakSelectionCard(payload) {
   if (payload) {
     currentBreakSessionId = payload.sessionId || null;
     breakSelectionPayload = payload;
+    // breakMinutes 명확히 저장
+    if (payload.breakMinutes) {
+      breakSelectionPayload.breakMinutes = payload.breakMinutes;
+    }
     // storage에도 저장 (세션 ID가 있는 경우)
     if (payload.sessionId) {
       await chrome.storage.local.set({ prebreakPayload: payload });
@@ -530,12 +569,17 @@ async function expandBreakSelectionCard(payload) {
     const { prebreakPayload, sessionState } = await chrome.storage.local.get(['prebreakPayload', 'sessionState']);
     if (prebreakPayload) {
       breakSelectionPayload = prebreakPayload;
-      // 세션 ID 추출 (storage에서 가져온 경우 세션 ID를 찾아야 함)
+      // 세션 ID 추출 (가장 최근 것)
       const keys = await chrome.storage.local.get(null);
+      let latestTs = 0;
       for (const key in keys) {
         if (key.startsWith('prebreakMeta_')) {
-          currentBreakSessionId = key.replace('prebreakMeta_', '');
-          break;
+          const sid = key.replace('prebreakMeta_', '');
+          const ts = parseInt(sid.split('_')[0]) || 0;
+          if (ts > latestTs) {
+            latestTs = ts;
+            currentBreakSessionId = sid;
+          }
         }
       }
     }
