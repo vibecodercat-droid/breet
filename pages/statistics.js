@@ -1,103 +1,95 @@
 import { toCsvAndDownload } from "../lib/csv.js";
 import { groupByWeekdayCompletion } from "../lib/stats-manager.js";
-import { startOfLocalDay, isSameLocalDay, localDateKey, parseLocalDateKey } from "../lib/date-utils.js";
+import { isSameLocalDay, localDateKey, parseLocalDateKey } from "../lib/date-utils.js";
 
-// 세션(브레이크) 완료 기준 통계
+/**
+ * 세션(브레이크) 완료 기준 통계 갱신
+ */
 async function refreshSessionStats() {
   const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
-  const today = breakHistory.filter((b) => isSameLocalDay(Date.parse(b.timestamp || 0), Date.now()));
+  const today = breakHistory.filter((b) => 
+    isSameLocalDay(Date.parse(b.timestamp || 0), Date.now())
+  );
   const done = today.filter((b) => b.completed).length;
-  const count = today.length; // 오늘 쉼 횟수 (브레이크 수행 횟수)
+  const count = today.length;
   const rate = count ? Math.round((done / count) * 100) : 0;
-  document.getElementById('sessionDone').textContent = String(done);
-  document.getElementById('sessionCount').textContent = String(count);
-  document.getElementById('sessionRate').textContent = `${rate}%`;
+  
+  const doneEl = document.getElementById('sessionDone');
+  const countEl = document.getElementById('sessionCount');
+  const rateEl = document.getElementById('sessionRate');
+  
+  if (doneEl) doneEl.textContent = String(done);
+  if (countEl) countEl.textContent = String(count);
+  if (rateEl) rateEl.textContent = `${rate}%`;
 }
 
-// 투두리스트 기준 통계
-// 기준: todosByDate[YYYY-MM-DD]에서 오늘 날짜의 투두 배열
-// - 오늘 완료: completed === true인 항목 수
-// - 오늘 전체: 전체 투두 항목 수
-// - 완료율: (완료 / 전체) * 100
+/**
+ * 투두리스트 기준 통계 갱신
+ */
 async function refreshTodoStats() {
-  const dk = localDateKey(); // 오늘 날짜 (YYYY-MM-DD 형식, 로컬 기준)
+  const dateKey = localDateKey();
   const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
+  const todos = Array.isArray(todosByDate[dateKey]) ? todosByDate[dateKey] : [];
   
-  // 디버깅: 전체 구조 확인
-  console.log('[Stats] RefreshTodoStats - dateKey:', dk);
-  console.log('[Stats] todosByDate keys:', Object.keys(todosByDate));
-  console.log('[Stats] todosByDate[dk]:', todosByDate[dk]);
-  
-  const todos = Array.isArray(todosByDate[dk]) ? todosByDate[dk] : [];
-  console.log('[Stats] Todos array:', todos);
-  
-  const done = todos.filter((t) => t.completed === true).length;
+  const done = todos.filter((t) => t.completed).length;
   const total = todos.length;
   const rate = total ? Math.round((done / total) * 100) : 0;
-  
-  console.log('[Stats] Todo stats calculated:', { dk, done, total, rate, todosCount: todos.length });
   
   const doneEl = document.getElementById('todoDone');
   const totalEl = document.getElementById('todoTotal');
   const rateEl = document.getElementById('todoRate');
   
-  if (doneEl) {
-    doneEl.textContent = String(done);
-    console.log('[Stats] Updated todoDone element:', done);
-  } else {
-    console.error('[Stats] todoDone element not found!');
-  }
-  
-  if (totalEl) {
-    totalEl.textContent = String(total);
-    console.log('[Stats] Updated todoTotal element:', total);
-  } else {
-    console.error('[Stats] todoTotal element not found!');
-  }
-  
-  if (rateEl) {
-    rateEl.textContent = `${rate}%`;
-    console.log('[Stats] Updated todoRate element:', rate);
-  } else {
-    console.error('[Stats] todoRate element not found!');
-  }
+  if (doneEl) doneEl.textContent = String(done);
+  if (totalEl) totalEl.textContent = String(total);
+  if (rateEl) rateEl.textContent = `${rate}%`;
 }
 
-// 주간 막대그래프 (세션 + 투두 분리)
+/**
+ * 주간 막대그래프 렌더링 (세션 + 투두 완료율)
+ */
 async function renderWeekly() {
-  const { breakHistory = [], todosByDate = {} } = await chrome.storage.local.get(['breakHistory', 'todosByDate']);
+  const { breakHistory = [], todosByDate = {} } = await chrome.storage.local.get([
+    'breakHistory', 
+    'todosByDate'
+  ]);
   
   // 세션 기준 주간 통계
   const sessionWeekly = groupByWeekdayCompletion(breakHistory);
-  const sessionData = sessionWeekly.map(w => Math.round((w.rate || 0) * 100));
+  const sessionData = sessionWeekly.map((w) => Math.round((w.rate || 0) * 100));
   
   // 투두 기준 주간 통계
   const todoWeekly = Array.from({ length: 7 }, () => ({ total: 0, completed: 0 }));
   for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
     if (!Array.isArray(todos)) continue;
-    // YYYY-MM-DD를 로컬 날짜로 파싱
     const ts = parseLocalDateKey(dateKeyStr);
-    const d = new Date(ts);
-    const dayOfWeek = d.getDay();
-    todos.forEach(todo => {
+    const dayOfWeek = new Date(ts).getDay();
+    todos.forEach((todo) => {
       todoWeekly[dayOfWeek].total += 1;
       if (todo.completed) todoWeekly[dayOfWeek].completed += 1;
     });
   }
-  const todoData = todoWeekly.map(w => w.total ? Math.round((w.completed / w.total) * 100) : 0);
+  const todoData = todoWeekly.map((w) => 
+    w.total ? Math.round((w.completed / w.total) * 100) : 0
+  );
   
-  const labels = ['일','월','화','수','목','금','토'];
-  const ctx = document.getElementById('weeklyChart').getContext('2d');
+  const canvas = document.getElementById('weeklyChart');
+  if (!canvas) return;
   
-  // 기존 차트가 있으면 제거
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  
+  // 기존 차트 업데이트 또는 새로 생성
   if (window.weeklyChartInstance) {
-    window.weeklyChartInstance.destroy();
+    window.weeklyChartInstance.data.datasets[0].data = sessionData;
+    window.weeklyChartInstance.data.datasets[1].data = todoData;
+    window.weeklyChartInstance.update('none');
+    return;
   }
   
   window.weeklyChartInstance = new window.Chart(ctx, {
     type: 'bar',
     data: {
-      labels,
+      labels: ['일', '월', '화', '수', '목', '금', '토'],
       datasets: [
         {
           label: '세션 완료율',
@@ -122,9 +114,7 @@ async function renderWeekly() {
           beginAtZero: true,
           max: 100,
           ticks: {
-            callback: function(value) {
-              return value + '%';
-            }
+            callback: (value) => `${value}%`
           }
         }
       },
@@ -138,19 +128,22 @@ async function renderWeekly() {
   });
 }
 
-// 세션 출석 캘린더
+/**
+ * 세션 출석 캘린더 렌더링 (최근 30일)
+ */
 async function renderAttendanceCalendar() {
-  const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
   const calendar = document.getElementById('attendanceCalendar');
+  if (!calendar) return;
+  
+  const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
   calendar.innerHTML = '';
   
-  // 오늘로부터 최근 30일
-  const days = [];
-  for (let i = 29; i >= 0; i--) {
+  // 최근 30일 날짜 배열 생성
+  const days = Array.from({ length: 30 }, (_, i) => {
     const d = new Date();
-    d.setDate(d.getDate() - i);
-    days.push(d);
-  }
+    d.setDate(d.getDate() - (29 - i));
+    return d;
+  });
   
   // 각 날짜별 세션 완료 여부 계산
   const attendanceMap = new Map();
@@ -165,107 +158,111 @@ async function renderAttendanceCalendar() {
     }
   }
   
-  // 요일 헤더 (원래 구조로 복원)
+  // 요일 헤더 렌더링
   const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
-  dayLabels.forEach(label => {
+  dayLabels.forEach((label) => {
     const header = document.createElement('div');
     header.className = 'h-8 w-16 text-xs font-semibold text-gray-600 flex items-center justify-center';
     header.textContent = label;
     calendar.appendChild(header);
   });
   
-  // 각 날짜에 대해 빈 칸 또는 데이터 추가 (첫 번째 날의 요일에 맞춰 시작)
+  // 첫 주 빈 칸 추가
   const firstDay = days[0].getDay();
   for (let i = 0; i < firstDay; i++) {
     const empty = document.createElement('div');
-    empty.className = 'h-8 w-16'; // 빈 칸도 동일한 너비로 맞춤
+    empty.className = 'h-8 w-16';
     calendar.appendChild(empty);
   }
   
-  // 날짜 셀
-  days.forEach((d) => {
-    const key = localDateKey(d.getTime());
+  // 날짜 셀 렌더링
+  const todayKey = localDateKey();
+  days.forEach((date) => {
+    const key = localDateKey(date.getTime());
     const hasSession = attendanceMap.has(key);
     const completed = attendanceMap.get(key) || false;
-    const isToday = key === localDateKey();
+    const isToday = key === todayKey;
     
     const cell = document.createElement('div');
-    cell.className = `h-8 w-16 rounded text-xs flex items-center justify-center ${
-      isToday ? 'ring-2 ring-blue-500' : ''
-    } ${
-      completed ? 'bg-blue-500 text-white' : 
-      hasSession ? 'bg-gray-300' : 
-      'bg-gray-100'
-    }`;
-    cell.textContent = d.getDate();
+    const bgClass = completed 
+      ? 'bg-blue-500 text-white' 
+      : hasSession 
+      ? 'bg-gray-300' 
+      : 'bg-gray-100';
+    const ringClass = isToday ? 'ring-2 ring-blue-500' : '';
+    
+    cell.className = `h-8 w-16 rounded text-xs flex items-center justify-center ${ringClass} ${bgClass}`;
+    cell.textContent = date.getDate();
     cell.title = `${key}: ${completed ? '완료' : hasSession ? '시작' : '없음'}`;
     calendar.appendChild(cell);
   });
 }
 
-// 실시간 업데이트 리스너
+/**
+ * 실시간 업데이트 리스너 설정
+ */
 function setupRealtimeUpdates() {
-  console.log('[Stats] Setting up real-time updates');
-  
+  // Storage 변경 감지
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
     
-    console.log('[Stats] Storage changed:', Object.keys(changes));
-    console.log('[Stats] Changes details:', changes);
-    
-    // breakHistory 변경 시
     if (changes.breakHistory) {
-      console.log('[Stats] BreakHistory changed, refreshing session stats');
       refreshSessionStats();
       renderWeekly();
       renderAttendanceCalendar();
     }
     
-    // todosByDate 변경 시 (추가, 완료 토글, 삭제, 미루기 모두 포함)
     if (changes.todosByDate) {
-      console.log('[Stats] TodosByDate changed, newValue:', changes.todosByDate.newValue);
-      console.log('[Stats] Refreshing todo stats immediately');
-      // 즉시 반영
       setTimeout(() => {
         refreshTodoStats();
         renderWeekly();
-      }, 100); // 짧은 딜레이로 저장 완료 보장
+      }, 100);
     }
   });
   
-  // 페이지 가시성 변경 시 새로고침 (다른 탭에서 작업한 경우)
+  // 페이지 가시성 변경 감지
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      console.log('[Stats] Page visible, refreshing stats');
-      refreshSessionStats();
-      refreshTodoStats();
-      renderWeekly();
-      renderAttendanceCalendar();
+      refreshAllStats();
     }
   });
   
-  // 페이지 포커스 시에도 새로고침 (사용자가 다른 탭에서 투두를 완료한 경우)
+  // 페이지 포커스 감지
   window.addEventListener('focus', () => {
-    console.log('[Stats] Window focused, refreshing stats');
-    refreshSessionStats();
-    refreshTodoStats();
-    renderWeekly();
-    renderAttendanceCalendar();
+    refreshAllStats();
   });
 }
 
+/**
+ * 모든 통계 갱신
+ */
+async function refreshAllStats() {
+  await Promise.all([
+    refreshSessionStats(),
+    refreshTodoStats(),
+    renderWeekly(),
+    renderAttendanceCalendar()
+  ]);
+}
+
+/**
+ * CSV 내보내기 핸들러
+ */
+async function handleExportCsv() {
+  const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
+  const filename = `breet_break_history_${localDateKey()}.csv`;
+  toCsvAndDownload(breakHistory, filename);
+}
+
+/**
+ * 초기화
+ */
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('exportCsv').addEventListener('click', async () => {
-    const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
-    toCsvAndDownload(breakHistory, `breet_break_history_${new Date().toISOString().slice(0,10)}.csv`);
-  });
+  const exportBtn = document.getElementById('exportCsv');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', handleExportCsv);
+  }
   
-  // 초기 렌더링
-  refreshSessionStats();
-  refreshTodoStats();
-  renderWeekly();
-  renderAttendanceCalendar();
-  
-  // 실시간 업데이트 설정
+  refreshAllStats();
   setupRealtimeUpdates();
 });
