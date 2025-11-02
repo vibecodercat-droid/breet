@@ -15,6 +15,47 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 const GROQ_BASE_URL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
 
+// 한국어 맞춤법 검증 (최종 단계)
+function validateKoreanSpelling(s = '') {
+  if (!s || typeof s !== 'string') return '';
+  let text = s.trim();
+  if (!text) return '';
+  
+  // 1. 한글, 공백, 중점, 이모지만 허용
+  const validCharsRegex = /^[가-힣\s·\p{Emoji}]+$/u;
+  if (!validCharsRegex.test(text)) {
+    // 유효하지 않은 문자가 있으면 제거
+    text = text.replace(/[^가-힣\s·\p{Emoji}]/gu, '');
+  }
+  
+  // 2. 이상한 문자 조합 차단
+  const suspiciousPatterns = [
+    /[ㄱ-ㅎ]{3,}/, // 자음 3개 이상 연속
+    /[ㅏ-ㅣ]{3,}/, // 모음 3개 이상 연속
+    /[가-힣]{1}[ㄱ-ㅎ]{2,}/, // 한글 + 자음 연속
+    /[가-힣]{1}[ㅏ-ㅣ]{2,}/, // 한글 + 모음 연속
+    /([가-힣])\1{3,}/, // 같은 글자 4개 이상 반복
+  ];
+  
+  if (suspiciousPatterns.some(p => p.test(text))) {
+    // 이상한 패턴이 있으면 fallback
+    return '';
+  }
+  
+  // 3. 띄어쓰기 오류 검사 (기본 패턴)
+  // 공백이 2개 이상 연속이면 1개로 통일
+  text = text.replace(/\s{2,}/g, ' ');
+  
+  // 4. 문장 끝맺음 확인 (~요 패턴 또는 이모지로 끝나야 함)
+  const validEndings = /(요|세요|해요|되요|돼요)\s*\p{Emoji}*\s*$/u;
+  if (!validEndings.test(text) && !/\p{Emoji}\s*$/u.test(text)) {
+    // ~요 패턴과 이모지가 없으면 검증 실패로 간주
+    return '';
+  }
+  
+  return text.trim();
+}
+
 function clampText(s = '', min = 1, max = 50) {
   const t = (s || '').trim();
   if (!t) return '';
@@ -213,7 +254,14 @@ app.post('/api/ai/dailyQuote', async (req, res) => {
   const user = JSON.stringify(optimizedContext);
   try {
     const text = await callGroqChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { max_tokens: 60, temperature: 0.8 });
-    return res.json({ text: clampText(text, minChars, maxChars) });
+    let clamped = clampText(text, minChars, maxChars);
+    
+    // 최종 맞춤법 검사 (timerDescription인 경우)
+    if (isTimerDescription && clamped) {
+      clamped = validateKoreanSpelling(clamped);
+    }
+    
+    return res.json({ text: clamped });
   } catch (e) {
     return res.json({ text: '' });
   }
