@@ -82,28 +82,38 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const metaKey = sessionId ? `prebreakMeta_${sessionId}` : 'prebreakMeta';
         // 세션별 메타데이터 우선 사용 (새 세션마다 리셋됨)
         const { [metaKey]: sessionMeta = null } = await chrome.storage.local.get(metaKey);
-        // 세션별 메타가 없으면 전역 메타 사용
+        // 세션별 메타가 없으면 전역 메타 사용 (기본값: otherUsed=0, maxOther=4)
         const { prebreakMeta = { otherUsed: 0, maxOther: 4, breakMinutes: 5 } } = await chrome.storage.local.get('prebreakMeta');
+        // 세션별 메타 우선 사용 (타이머 버튼 클릭 시마다 리셋됨)
         const preMeta = sessionMeta || prebreakMeta || { otherUsed: 0, maxOther: 4, breakMinutes: 5 };
+        
+        // otherUsed 체크 (세션별로 독립적)
         if ((preMeta.otherUsed || 0) >= (preMeta.maxOther || 4)) {
           sendResponse({ ok: false, error: 'limit_reached' });
           return;
         }
+        
         // breakMinutes 우선순위: payload > meta > 5
         const bm = breakMinutes ?? preMeta.breakMinutes ?? 5;
         await recommendNextBreakWithAI(bm, excludeIds);
+        
         // Copy generic candidates into session-namespaced keys if sessionId provided
         if (sessionId) {
           const { pendingBreakCandidates = [], pendingBreak = null } = await chrome.storage.local.get(['pendingBreakCandidates','pendingBreak']);
           const ns = {}; ns[`pendingBreakCandidates_${sessionId}`] = pendingBreakCandidates; ns[`pendingBreak_${sessionId}`] = pendingBreak;
           await chrome.storage.local.set(ns);
         }
+        
+        // 메타데이터 업데이트: otherUsed 증가
         const newMeta = { ...preMeta, otherUsed: (preMeta.otherUsed || 0) + 1, breakMinutes: bm };
         const toSet = {}; 
         // 세션별 메타 업데이트 (세션별로 독립적으로 관리)
         toSet[metaKey] = newMeta;
-        // 세션 ID가 있으면 전역 메타도 함께 업데이트 (세션별 메타 우선 사용하지만 동기화)
+        // 세션 ID가 있으면 전역 메타도 업데이트 (세션별 메타와 동기화)
         if (sessionId) {
+          toSet['prebreakMeta'] = newMeta;
+        } else {
+          // 세션 ID가 없으면 전역 메타만 업데이트
           toSet['prebreakMeta'] = newMeta;
         }
         await chrome.storage.local.set(toSet);
@@ -325,16 +335,21 @@ async function openPreBreakSelection(payload) {
   const rec = await recommendNextBreakWithAI(breakMinutes);
   // 세션별 네임스페이스에 복사 저장
   const { pendingBreakCandidates = [] } = await chrome.storage.local.get('pendingBreakCandidates');
+  
+  // 새 세션의 메타데이터: otherUsed를 0으로 명확히 리셋
+  const freshMeta = { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes };
+  
   const ns = {}; 
   ns[`pendingBreak_${sessionId}`] = rec; 
   ns[`pendingBreakCandidates_${sessionId}`] = pendingBreakCandidates; 
   ns[`allBreakCandidates_${sessionId}`] = pendingBreakCandidates; // 초기 후보도 저장
-  ns[`prebreakMeta_${sessionId}`] = { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes };
+  ns[`prebreakMeta_${sessionId}`] = freshMeta;
   await chrome.storage.local.set(ns);
-  // 전역 prebreakMeta도 초기화하여 새로운 세션에서 4번 기회 보장
+  
+  // 전역 prebreakMeta도 명확히 0으로 리셋 (타이머 버튼 클릭 시마다 4번 기회 보장)
   await chrome.storage.local.set({
     prebreakPayload: { ...payload, breakMinutes: breakMinutes },
-    prebreakMeta: { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes }, // 항상 0으로 리셋
+    prebreakMeta: { ...freshMeta }, // 항상 0으로 리셋
     pendingBreak: rec,
     pendingBreakCandidates: pendingBreakCandidates,
     [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: breakMinutes }
