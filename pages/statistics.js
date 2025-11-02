@@ -169,7 +169,7 @@ async function renderAttendanceCalendar() {
   const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
   dayLabels.forEach(label => {
     const header = document.createElement('div');
-    header.className = 'text-xs font-semibold text-gray-600 text-center flex items-center justify-center';
+    header.className = 'h-8 w-16 text-xs font-semibold text-gray-600 flex items-center justify-center';
     header.textContent = label;
     calendar.appendChild(header);
   });
