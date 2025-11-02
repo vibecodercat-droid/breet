@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await refreshAuthUI();
   await renderOnboardingSummary();
   await renderDailyAffirmation();
+  await renderTimerDescription();
 
   document.getElementById('loginBtn').addEventListener('click', async () => {
     try { await loginWithGoogle(); } catch (e) { alert('로그인 실패: ' + e.message); }
