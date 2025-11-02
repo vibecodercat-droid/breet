@@ -1,4 +1,5 @@
 import { isAuthenticated, loginWithGoogle, logout, loadAuth } from '../lib/auth.js';
+import { localDateKey } from '../lib/date-utils.js';
 import { requestDailyAffirmation } from '../lib/ai-client.js';
 const MODE_PRESETS = {
   pomodoro: { work: 25, rest: 5 },

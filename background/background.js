@@ -539,31 +539,76 @@ async function clearAllTimers() {
   await chrome.alarms.clear(ALARM_NAMES.TOAST);
 }
 
+// 브레이크 엔트리 생성자 (스키마 통일)
+function makeBreakEntry({
+  pendingBreak,
+  completed,
+  durationMin,
+  workDuration = null,
+  source = 'rule',
+  recId = null,
+  finishedTs = Date.now(),
+  workEndTs = null
+}) {
+  const label =
+    (workDuration === 25 && durationMin === 5) ? '25/5' :
+    (workDuration === 50 && durationMin === 10) ? '50/10' :
+    (workDuration === 15 && durationMin === 3) ? '15/3' :
+    (workDuration === 1 && durationMin === 1) ? '1/1' :
+    `${workDuration || '-'}/${durationMin}`;
+  
+  const wEnd = workEndTs ?? (finishedTs - durationMin * 60 * 1000);
+  
+  return {
+    id: finishedTs,
+    breakId: pendingBreak?.id ?? 'manual',
+    breakType: pendingBreak?.type ?? 'unknown',
+    breakName: pendingBreak?.name ?? null,
+    duration: durationMin,
+    workDuration: workDuration ?? null,
+    label,
+    completed: !!completed,
+    timestamp: new Date(finishedTs).toISOString(),
+    workEndTs: new Date(wEnd).toISOString(),
+    recommendationSource: source,
+    recId: recId ?? null
+  };
+}
+
+// 단일 저장 경로 (background에서만 저장)
+async function appendBreakHistory(entry) {
+  try {
+    const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
+    await chrome.storage.local.set({ breakHistory: [...breakHistory, entry] });
+  } catch (e) {
+    console.error('[Timer] appendBreakHistory error', e);
+  }
+}
+
 async function saveBreakHistory(completed, actualDuration) {
   try {
     const { pendingBreak } = await chrome.storage.local.get(STORAGE_KEYS.PENDING_BREAK);
-    const { sessionState, lastWorkEndTs = null } = await chrome.storage.local.get([STORAGE_KEYS.SESSION,'lastWorkEndTs']);
+    const { sessionState, lastWorkEndTs = null } = await chrome.storage.local.get([STORAGE_KEYS.SESSION, 'lastWorkEndTs']);
     if (!pendingBreak) return;
     const duration = Number(actualDuration) || sessionState?.breakDuration || 5;
     const workDur = sessionState?.workDuration || null;
     const finishedTs = Date.now();
     const workEndTs = lastWorkEndTs || (finishedTs - duration * 60 * 1000);
-    const label = (workDur===25 && duration===5) ? '25/5' : (workDur===50 && duration===10) ? '50/10' : (workDur===15 && duration===3) ? '15/3' : (workDur===1 && duration===1) ? '1/1' : `${workDur||'-'}/${duration}`;
-    const entry = {
-      id: finishedTs,
-      breakId: pendingBreak.id,
-      breakType: pendingBreak.type,
-      breakName: pendingBreak.name || null,
-      duration,
-      workDuration: workDur,
-      label,
+    
+    const entry = makeBreakEntry({
+      pendingBreak,
       completed: !!completed,
-      timestamp: new Date(finishedTs).toISOString(),
-      workEndTs: new Date(workEndTs).toISOString(),
-      recommendationSource: pendingBreak.source || 'rule',
-    };
-    const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
-    await chrome.storage.local.set({ breakHistory: [...breakHistory, entry] });
-  } catch (e) { console.error('[Timer] saveBreakHistory error', e); }
+      durationMin: duration,
+      workDuration: workDur,
+      source: pendingBreak.source || 'rule',
+      recId: pendingBreak.recId || null,
+      finishedTs,
+      workEndTs
+    });
+    
+    await appendBreakHistory(entry);
+  } catch (e) {
+    console.error('[Timer] saveBreakHistory error', e);
+  }
 }
 

@@ -1,19 +1,6 @@
 import { toCsvAndDownload } from "../lib/csv.js";
 import { groupByWeekdayCompletion } from "../lib/stats-manager.js";
-
-function startOfLocalDay(ts = Date.now()) {
-  const d = new Date(ts);
-  d.setHours(0,0,0,0);
-  return d.getTime();
-}
-
-function isSameLocalDay(tsA, tsB) {
-  return startOfLocalDay(tsA) === startOfLocalDay(tsB);
-}
-
-function dateKey(d = new Date()) {
-  return d.toISOString().slice(0, 10);
-}
+import { startOfLocalDay, isSameLocalDay, localDateKey, parseLocalDateKey } from "../lib/date-utils.js";
 
 // 세션(브레이크) 완료 기준 통계
 async function refreshSessionStats() {
@@ -33,7 +20,7 @@ async function refreshSessionStats() {
 // - 오늘 전체: 전체 투두 항목 수
 // - 완료율: (완료 / 전체) * 100
 async function refreshTodoStats() {
-  const dk = dateKey(); // 오늘 날짜 (YYYY-MM-DD 형식)
+  const dk = localDateKey(); // 오늘 날짜 (YYYY-MM-DD 형식, 로컬 기준)
   const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
   
   // 디버깅: 전체 구조 확인
@@ -86,9 +73,11 @@ async function renderWeekly() {
   
   // 투두 기준 주간 통계
   const todoWeekly = Array.from({ length: 7 }, () => ({ total: 0, completed: 0 }));
-  for (const [dateKey, todos] of Object.entries(todosByDate)) {
+  for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
     if (!Array.isArray(todos)) continue;
-    const d = new Date(dateKey);
+    // YYYY-MM-DD를 로컬 날짜로 파싱
+    const ts = parseLocalDateKey(dateKeyStr);
+    const d = new Date(ts);
     const dayOfWeek = d.getDay();
     todos.forEach(todo => {
       todoWeekly[dayOfWeek].total += 1;
@@ -166,8 +155,8 @@ async function renderAttendanceCalendar() {
   // 각 날짜별 세션 완료 여부 계산
   const attendanceMap = new Map();
   for (const b of breakHistory) {
-    const d = new Date(b.timestamp || 0);
-    const key = dateKey(d);
+    const ts = Date.parse(b.timestamp || 0);
+    const key = localDateKey(ts);
     if (!attendanceMap.has(key)) {
       attendanceMap.set(key, false);
     }
@@ -176,28 +165,35 @@ async function renderAttendanceCalendar() {
     }
   }
   
-  // 요일 헤더
+  // 요일 헤더 (별도 그리드)
+  const headerGrid = document.createElement('div');
+  headerGrid.className = 'grid grid-cols-7 gap-2 mb-2';
   const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
   dayLabels.forEach(label => {
     const header = document.createElement('div');
     header.className = 'text-xs font-semibold text-gray-600 text-center';
     header.textContent = label;
-    calendar.appendChild(header);
+    headerGrid.appendChild(header);
   });
+  calendar.appendChild(headerGrid);
+  
+  // 날짜 그리드
+  const dateGrid = document.createElement('div');
+  dateGrid.className = 'grid grid-cols-7 gap-2';
   
   // 각 날짜에 대해 빈 칸 또는 데이터 추가 (첫 번째 날의 요일에 맞춰 시작)
   const firstDay = days[0].getDay();
   for (let i = 0; i < firstDay; i++) {
     const empty = document.createElement('div');
-    calendar.appendChild(empty);
+    dateGrid.appendChild(empty);
   }
   
   // 날짜 셀
   days.forEach((d) => {
-    const key = dateKey(d);
+    const key = localDateKey(d.getTime());
     const hasSession = attendanceMap.has(key);
     const completed = attendanceMap.get(key) || false;
-    const isToday = dateKey(d) === dateKey();
+    const isToday = key === localDateKey();
     
     const cell = document.createElement('div');
     cell.className = `h-8 w-8 rounded text-xs flex items-center justify-center ${
@@ -209,8 +205,9 @@ async function renderAttendanceCalendar() {
     }`;
     cell.textContent = d.getDate();
     cell.title = `${key}: ${completed ? '완료' : hasSession ? '시작' : '없음'}`;
-    calendar.appendChild(cell);
+    dateGrid.appendChild(cell);
   });
+  calendar.appendChild(dateGrid);
 }
 
 // 실시간 업데이트 리스너
@@ -243,10 +240,16 @@ function setupRealtimeUpdates() {
     }
   });
   
-  // 주기적으로도 체크 (1초마다, 안전장치)
-  setInterval(() => {
-    refreshTodoStats();
-  }, 1000);
+  // 페이지 가시성 변경 시 새로고침 (다른 탭에서 작업한 경우)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      console.log('[Stats] Page visible, refreshing stats');
+      refreshSessionStats();
+      refreshTodoStats();
+      renderWeekly();
+      renderAttendanceCalendar();
+    }
+  });
   
   // 페이지 포커스 시에도 새로고침 (사용자가 다른 탭에서 투두를 완료한 경우)
   window.addEventListener('focus', () => {
