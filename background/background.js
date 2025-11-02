@@ -80,9 +80,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
       try {
         const metaKey = sessionId ? `prebreakMeta_${sessionId}` : 'prebreakMeta';
-        const { [metaKey]: metaFallback = null } = await chrome.storage.local.get(metaKey);
+        // 세션별 메타데이터 우선 사용 (새 세션마다 리셋됨)
+        const { [metaKey]: sessionMeta = null } = await chrome.storage.local.get(metaKey);
+        // 세션별 메타가 없으면 전역 메타 사용
         const { prebreakMeta = { otherUsed: 0, maxOther: 4, breakMinutes: 5 } } = await chrome.storage.local.get('prebreakMeta');
-        const preMeta = metaFallback || prebreakMeta || { otherUsed: 0, maxOther: 4, breakMinutes: 5 };
+        const preMeta = sessionMeta || prebreakMeta || { otherUsed: 0, maxOther: 4, breakMinutes: 5 };
         if ((preMeta.otherUsed || 0) >= (preMeta.maxOther || 4)) {
           sendResponse({ ok: false, error: 'limit_reached' });
           return;
@@ -97,7 +99,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           await chrome.storage.local.set(ns);
         }
         const newMeta = { ...preMeta, otherUsed: (preMeta.otherUsed || 0) + 1, breakMinutes: bm };
-        const toSet = {}; toSet[metaKey] = newMeta; toSet['prebreakMeta'] = newMeta; await chrome.storage.local.set(toSet);
+        const toSet = {}; 
+        // 세션별 메타 업데이트 (세션별로 독립적으로 관리)
+        toSet[metaKey] = newMeta;
+        // 세션 ID가 있으면 전역 메타도 함께 업데이트 (세션별 메타 우선 사용하지만 동기화)
+        if (sessionId) {
+          toSet['prebreakMeta'] = newMeta;
+        }
+        await chrome.storage.local.set(toSet);
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({ ok: false, error: String(e) });
@@ -322,9 +331,10 @@ async function openPreBreakSelection(payload) {
   ns[`allBreakCandidates_${sessionId}`] = pendingBreakCandidates; // 초기 후보도 저장
   ns[`prebreakMeta_${sessionId}`] = { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes };
   await chrome.storage.local.set(ns);
+  // 전역 prebreakMeta도 초기화하여 새로운 세션에서 4번 기회 보장
   await chrome.storage.local.set({
     prebreakPayload: { ...payload, breakMinutes: breakMinutes },
-    prebreakMeta: { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes },
+    prebreakMeta: { otherUsed: 0, maxOther: 4, breakMinutes: breakMinutes }, // 항상 0으로 리셋
     pendingBreak: rec,
     pendingBreakCandidates: pendingBreakCandidates,
     [STORAGE_KEYS.SESSION]: { phase: PHASES.SELECTING, mode: payload?.mode || 'pomodoro', startTs: null, endTs: null, pausedAt: null, remainingMs: null, workDuration: payload?.workMinutes || 25, breakDuration: breakMinutes }
