@@ -9,10 +9,21 @@
   <body class="bg-gray-50 text-gray-800 font-sans">
     <main class="max-w-2xl mx-auto p-6 space-y-4">
       <h1 class="text-xl font-semibold text-blue-600">통계</h1>
-      <section class="bg-white rounded-lg shadow-sm p-4 grid grid-cols-3 gap-4">
-        <div><div class="text-sm text-gray-500">오늘 완료</div><div id="todayDone" class="text-2xl font-semibold">0</div></div>
-        <div><div class="text-sm text-gray-500">오늘 제안</div><div id="todaySuggested" class="text-2xl font-semibold">0</div></div>
-        <div><div class="text-sm text-gray-500">완료율</div><div id="todayRate" class="text-2xl font-semibold">0%</div></div>
+      <section class="bg-white rounded-lg shadow-sm p-4 space-y-4">
+        <h2 class="text-base font-semibold mb-2">세션 완료 기준</h2>
+        <div class="grid grid-cols-3 gap-4">
+          <div><div class="text-sm text-gray-500">오늘 완료</div><div id="sessionDone" class="text-2xl font-semibold">0</div></div>
+          <div><div class="text-sm text-gray-500">오늘 제안</div><div id="sessionSuggested" class="text-2xl font-semibold">0</div></div>
+          <div><div class="text-sm text-gray-500">완료율</div><div id="sessionRate" class="text-2xl font-semibold">0%</div></div>
+        </div>
+      </section>
+      <section class="bg-white rounded-lg shadow-sm p-4 space-y-4">
+        <h2 class="text-base font-semibold mb-2">투두리스트 기준</h2>
+        <div class="grid grid-cols-3 gap-4">
+          <div><div class="text-sm text-gray-500">오늘 완료</div><div id="todoDone" class="text-2xl font-semibold">0</div></div>
+          <div><div class="text-sm text-gray-500">오늘 전체</div><div id="todoTotal" class="text-2xl font-semibold">0</div></div>
+          <div><div class="text-sm text-gray-500">완료율</div><div id="todoRate" class="text-2xl font-semibold">0%</div></div>
+        </div>
       </section>
       <section class="bg-white rounded-lg shadow-sm p-4">
         <h2 class="text-base font-semibold mb-2">주간 완료율</h2>
