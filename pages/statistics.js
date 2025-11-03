@@ -5,6 +5,8 @@ import { isSameLocalDay, localDateKey, parseLocalDateKey, startOfLocalDay } from
 // 선택된 날짜 상태
 let selectedDate = new Date();
 selectedDate.setHours(0, 0, 0, 0);
+// 주 네비게이션 상태 (0: 이번 주, -1: 지난 주 ...)
+let weekOffset = 0;
 
 /**
  * 선택된 날짜 표시
@@ -99,7 +101,7 @@ async function refreshTodoStats() {
 /**
  * 주차 정보 계산 (한국 주차 기준: 월요일 시작)
  */
-function getWeekInfo(date = new Date()) {
+function getWeekInfo(date = new Date(), offset = 0) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   
@@ -107,7 +109,7 @@ function getWeekInfo(date = new Date()) {
   const dayOfWeek = d.getDay();
   const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // 일요일이면 -6, 아니면 1-dayOfWeek
   const weekStart = new Date(d);
-  weekStart.setDate(d.getDate() + diff);
+  weekStart.setDate(d.getDate() + diff + (offset * 7));
   
   // 주의 마지막날 (일요일)
   const weekEnd = new Date(weekStart);
@@ -147,25 +149,37 @@ async function renderWeekly() {
   ]);
   
   // 주차 정보 표시
-  const weekInfo = getWeekInfo();
+  const weekInfo = getWeekInfo(new Date(), weekOffset);
   const weekInfoEl = document.getElementById('weekInfo');
   if (weekInfoEl) {
     weekInfoEl.textContent = weekInfo.text;
   }
+  const startTs = weekInfo.start.getTime();
+  const endTs = new Date(weekInfo.end.getFullYear(), weekInfo.end.getMonth(), weekInfo.end.getDate(), 23,59,59,999).getTime();
   
-  // 세션 기준 주간 통계
-  const sessionWeekly = groupByWeekdayCompletion(breakHistory);
-  const sessionData = sessionWeekly.map((w) => Math.round((w.rate || 0) * 100));
+  // 세션 기준 주간 통계 (월~일)
+  const sessionCounts = Array.from({ length: 7 }, () => ({ total: 0, completed: 0 }));
+  for (const b of breakHistory) {
+    const ts = Date.parse(b.timestamp || 0);
+    if (!(ts >= startTs && ts <= endTs)) continue;
+    const gd = new Date(ts).getDay();
+    const idx = (gd === 0) ? 6 : (gd - 1);
+    sessionCounts[idx].total += 1;
+    if (b.completed) sessionCounts[idx].completed += 1;
+  }
+  const sessionData = sessionCounts.map(c => c.total ? Math.round((c.completed / c.total) * 100) : 0);
   
   // 투두 기준 주간 통계
   const todoWeekly = Array.from({ length: 7 }, () => ({ total: 0, completed: 0 }));
   for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
     if (!Array.isArray(todos)) continue;
     const ts = parseLocalDateKey(dateKeyStr);
+    if (!(ts >= startTs && ts <= endTs)) continue;
     const dayOfWeek = new Date(ts).getDay();
+    const idx = (dayOfWeek === 0) ? 6 : (dayOfWeek - 1);
     todos.forEach((todo) => {
-      todoWeekly[dayOfWeek].total += 1;
-      if (todo.completed) todoWeekly[dayOfWeek].completed += 1;
+      todoWeekly[idx].total += 1;
+      if (todo.completed) todoWeekly[idx].completed += 1;
     });
   }
   const todoData = todoWeekly.map((w) => 
@@ -192,7 +206,7 @@ async function renderWeekly() {
   window.weeklyChartInstance = new window.Chart(ctx, {
     type: 'bar',
     data: {
-      labels: ['일','월','화','수','목','금','토'],
+      labels: ['월','화','수','목','금','토','일'],
       datasets: [
         { label: '세션 완료율', data: sessionData, backgroundColor: 'rgba(59, 130, 246, 0.6)', borderColor: 'rgba(59,130,246,1)', borderWidth: 2 },
         { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
@@ -350,6 +364,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (prevBtn) prevBtn.addEventListener('click', goToPrevDate);
   if (nextBtn) nextBtn.addEventListener('click', goToNextDate);
   renderSelectedDate();
+  // 주 이동 버튼 연결
+  const prevWeekBtn = document.getElementById('prevWeek');
+  const nextWeekBtn = document.getElementById('nextWeek');
+  const prevWeekHeat = document.getElementById('prevWeekHeat');
+  const nextWeekHeat = document.getElementById('nextWeekHeat');
+  function moveWeek(delta){ weekOffset = Math.min(0, weekOffset + delta); renderWeekly(); renderHourlyHeatmap(); }
+  if (prevWeekBtn) prevWeekBtn.addEventListener('click', ()=>moveWeek(-1));
+  if (nextWeekBtn) nextWeekBtn.addEventListener('click', ()=>moveWeek(1));
+  if (prevWeekHeat) prevWeekHeat.addEventListener('click', ()=>moveWeek(-1));
+  if (nextWeekHeat) nextWeekHeat.addEventListener('click', ()=>moveWeek(1));
   
   refreshAllStats();
   setupRealtimeUpdates();
@@ -414,12 +438,16 @@ async function renderTypeDistribution(){
 
 async function renderHourlyHeatmap(){
   const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
+  const info = getWeekInfo(new Date(), weekOffset);
+  const startTs = info.start.getTime();
+  const endTs = new Date(info.end.getFullYear(), info.end.getMonth(), info.end.getDate(), 23,59,59,999).getTime();
   const grid=Array(7).fill(0).map(()=>Array(24).fill(0));
-  breakHistory.filter(b=>b.completed).forEach(b=>{ const d=new Date(b.timestamp); grid[d.getDay()][d.getHours()]++; });
+  breakHistory.filter(b=>b.completed).forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=startTs && ts<=endTs)) return; const d=new Date(ts); const idx=(d.getDay()===0)?6:(d.getDay()-1); grid[idx][d.getHours()]++; });
   const container=document.getElementById('hourlyHeatmap'); if(!container) return; const max=Math.max(0,...grid.flat());
-  const days=['일','월','화','수','목','금','토']; let html='<div class="inline-flex flex-col gap-1">';
+  const days=['월','화','수','목','금','토','일']; let html='<div class="inline-flex flex-col gap-1">';
   days.forEach((day,di)=>{ html+='<div class="flex gap-1">'; html+=`<div class="w-8 text-xs flex items-center justify-end pr-1">${day}</div>`; for(let h=0;h<24;h++){ const c=grid[di][h]; const t=max?c/max:0; const color=t===0?'#f3f4f6': t<0.33?'#dbeafe': t<0.66?'#93c5fd':'#3b82f6'; html+=`<div class="w-4 h-4 rounded-sm" style="background-color:${color}" title="${day} ${h}시: ${c}회"></div>`;} html+='</div>'; }); html+='</div>';
   container.innerHTML=html;
+  const weekInfoHeat = document.getElementById('weekInfoHeat'); if (weekInfoHeat) weekInfoHeat.textContent = info.text;
 }
 
 async function renderTrendChart(){
