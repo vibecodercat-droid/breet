@@ -340,7 +340,12 @@ async function refreshCountdown() {
     const mm = String(Math.floor(remain / 60000)).padStart(2, '0');
     const ss = String(Math.floor((remain % 60000) / 1000)).padStart(2, '0');
     el.textContent = `${mm}:${ss}`;
-    if (sub) sub.textContent = `일시정지 · 재생 시 ${mm}:${ss} 뒤 휴식`;
+    if (sub) {
+      const isBreak = sessionState.mode === 'break';
+      sub.textContent = isBreak
+        ? `일시정지 · 재생 시 ${mm}:${ss} 뒤 세션완료`
+        : `일시정지 · 재생 시 ${mm}:${ss} 뒤 휴식`;
+    }
     return;
   }
   // running
@@ -353,7 +358,15 @@ async function refreshCountdown() {
   const mm = String(Math.floor(remain / 60000)).padStart(2, '0');
   const ss = String(Math.floor((remain % 60000) / 1000)).padStart(2, '0');
   el.textContent = `${mm}:${ss}`;
-  if (sub) sub.textContent = `집중 중 · ${mm}:${ss} 뒤 휴식`;
+  if (sub) {
+    if (sessionState.phase === 'break') {
+      sub.textContent = `휴식 · ${mm}:${ss} 뒤 세션완료`;
+    } else if (sessionState.phase === 'work_ending') {
+      sub.textContent = `휴식 전환 · ${mm}:${ss} 뒤 휴식`;
+    } else {
+      sub.textContent = `집중 중 · ${mm}:${ss} 뒤 휴식`;
+    }
+  }
 }
 
 async function loadTodos() {
