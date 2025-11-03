@@ -165,7 +165,6 @@ async function renderWeekly() {
   
   const weekInfoEl = document.getElementById('weekInfo');
   let labels = [];
-  let sessionData = [];
   let todoData = [];
   if (weeklyMode === 'week') {
     const weekInfo = getWeekInfo(new Date(), weekOffset);
@@ -174,16 +173,6 @@ async function renderWeekly() {
     if (weekInfoEl) weekInfoEl.textContent = weekInfo.text;
     labels = ['월','화','수','목','금','토','일'];
     const bucketLen = 7;
-    const sessionCounts = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
-    for (const b of breakHistory) {
-      const ts = Date.parse(b.timestamp || 0);
-      if (!(ts >= startTs && ts <= endTs)) continue;
-      const gd = new Date(ts).getDay();
-      const idx = (gd === 0) ? 6 : (gd - 1);
-      sessionCounts[idx].total += 1;
-      if (b.completed) sessionCounts[idx].completed += 1;
-    }
-    sessionData = sessionCounts.map(c => c.total ? Math.round((c.completed / c.total) * 100) : 0);
     const todoWeekly = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
     for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
       if (!Array.isArray(todos)) continue;
@@ -207,16 +196,6 @@ async function renderWeekly() {
     if (weekInfoEl) weekInfoEl.textContent = `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`;
     const daysInMonth = mEnd.getDate();
     labels = Array.from({length: daysInMonth}, (_,i)=> String(i+1));
-    const sessionCounts = Array.from({ length: daysInMonth }, () => ({ total: 0, completed: 0 }));
-    for (const b of breakHistory) {
-      const ts = Date.parse(b.timestamp || 0);
-      if (!(ts >= startTs && ts <= endTs)) continue;
-      const d = new Date(ts).getDate();
-      const idx = d - 1;
-      sessionCounts[idx].total += 1;
-      if (b.completed) sessionCounts[idx].completed += 1;
-    }
-    sessionData = sessionCounts.map(c => c.total ? Math.round((c.completed / c.total) * 100) : 0);
     const todoMonthly = Array.from({ length: daysInMonth }, () => ({ total: 0, completed: 0 }));
     for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
       if (!Array.isArray(todos)) continue;
@@ -239,8 +218,7 @@ async function renderWeekly() {
     const sameLen = inst && inst.data && Array.isArray(inst.data.labels) && inst.data.labels.length === labels.length;
     if (sameLen) {
       inst.data.labels = labels;
-      inst.data.datasets[0].data = sessionData;
-      inst.data.datasets[1].data = todoData;
+      inst.data.datasets[0].data = todoData;
       inst.update('none');
       return;
     } else {
@@ -253,7 +231,6 @@ async function renderWeekly() {
     data: {
       labels: labels,
       datasets: [
-        { label: '세션 완료율', data: sessionData, backgroundColor: 'rgba(59, 130, 246, 0.6)', borderColor: 'rgba(59,130,246,1)', borderWidth: 2 },
         { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
       ]
     },
