@@ -237,6 +237,17 @@ async function renderWeekly() {
         ctx.restore();
       }
     };
+    try {
+      if (window.Chart) {
+        if (typeof window.Chart.register === 'function') {
+          // Chart.js v3+
+          window.Chart.register(window._breetBarLabelPlugin);
+        } else if (window.Chart.plugins && typeof window.Chart.plugins.register === 'function') {
+          // Chart.js v2
+          window.Chart.plugins.register(window._breetBarLabelPlugin);
+        }
+      }
+    } catch (_) {}
   }
   if (window.weeklyChartInstance) {
     const inst = window.weeklyChartInstance;
