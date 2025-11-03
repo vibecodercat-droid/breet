@@ -8,6 +8,8 @@ selectedDate.setHours(0, 0, 0, 0);
 // 호환성: 과거 코드에서 참조하던 전역(안쓰이더라도 정의해 에러 방지)
 var periodMode = 'week';
 var monthOffset = 0;
+// window 전역에도 노출 (module 스코프 참조 이슈 대비)
+try { if (typeof window !== 'undefined') { window.periodMode = window.periodMode || periodMode; window.monthOffset = window.monthOffset || monthOffset; } } catch (_) {}
 // 주 네비게이션(주간 완료율/히트맵)
 let weekOffset = 0;
 // 브레이크 타입 분포 전용 기간/네비게이션 상태
