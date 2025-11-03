@@ -18,6 +18,9 @@ let currentBreakSessionId = null;
 let breakSelectionPayload = null;
 let isLoadingBreaks = false;
 const maxBreakPages = 5;
+// Timer gating flags
+let hasModeSelected = false;
+let hasBreakSelected = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Onboarding gate: if not completed, redirect to onboarding page
@@ -47,6 +50,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       selectedMode = btn.dataset.mode;
       setActiveModeButton(selectedMode);
       setControlsEnabled(true);
+      // show timer section when a preset is chosen
+      const ts = document.getElementById('timerSection'); if (ts) ts.classList.remove('hidden');
+      // require AI recommendation selection before enabling start
+      hasModeSelected = true; hasBreakSelected = false; setStartEnabled(false);
       // 타이머 모드 클릭 시 즉시 인라인 카드로 휴식 추천 표시
       const preset = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
       const payload = { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest };
@@ -98,6 +105,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // 이전 세션 상태 초기화
     allBreakCandidates = [];
+    // show timer section for quick preset too
+    const ts = document.getElementById('timerSection'); if (ts) ts.classList.remove('hidden');
+    hasModeSelected = true; hasBreakSelected = false; setStartEnabled(false);
     currentBreakPage = 0;
     selectedBreakIndex = 0;
     currentBreakSessionId = null;
@@ -197,13 +207,14 @@ function setActiveModeButton(mode) {
   const all = document.querySelectorAll('.mode-btn');
   all.forEach((b) => {
     b.classList.remove('bg-blue-500','text-white');
+    b.classList.remove('border-2','border-blue-400','bg-gray-50');
     if (!b.classList.contains('bg-gray-200')) b.classList.add('bg-gray-200');
   });
   if (mode) {
     const btn = document.querySelector(`.mode-btn[data-mode="${mode}"]`);
     if (btn) {
       btn.classList.remove('bg-gray-200');
-      btn.classList.add('bg-blue-500','text-white');
+      btn.classList.add('bg-gray-50','border-2','border-blue-400');
     }
   }
 }
@@ -211,8 +222,13 @@ function setActiveModeButton(mode) {
 function setControlsEnabled(enabled) {
   const start = document.getElementById('startBtn');
   const stop = document.getElementById('stopBtn');
-  if (start) start.disabled = !enabled;
+  if (start) start.disabled = !enabled || !hasBreakSelected; // gate by break selection
   if (stop) stop.disabled = !enabled;
+}
+
+function setStartEnabled(enabled){
+  const start = document.getElementById('startBtn');
+  if (start) start.disabled = !enabled;
 }
 
 async function renderOnboardingSummary() {
@@ -311,15 +327,22 @@ async function onStart(override, modeLabel) {
 
 function onPause() {
   chrome.runtime.sendMessage({ type: 'breet:pauseTimer' });
+  // after pause, enable start button again for resume
+  setStartEnabled(true);
 }
 
 async function refreshCountdown() {
   const el = document.getElementById('countdown');
+  const sub = document.getElementById('timerSubtext');
   if (!el) return;
   const { sessionState } = await chrome.storage.local.get('sessionState');
   if (!sessionState || !sessionState.startTs || sessionState.phase === 'idle' || sessionState.phase === undefined) {
     el.textContent = '--:--';
     setControlsEnabled(!!selectedMode);
+    if (sub) {
+      const p = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
+      sub.textContent = `시작을 누르면 ${p.work}분 집중 후 ${p.rest}분 휴식`;
+    }
     return;
   }
   if (sessionState.phase === 'paused') {
@@ -328,6 +351,7 @@ async function refreshCountdown() {
     const mm = String(Math.floor(remain / 60000)).padStart(2, '0');
     const ss = String(Math.floor((remain % 60000) / 1000)).padStart(2, '0');
     el.textContent = `${mm}:${ss}`;
+    if (sub) sub.textContent = `일시정지 · 재생 시 ${mm}:${ss} 뒤 휴식`;
     return;
   }
   // running
@@ -340,6 +364,7 @@ async function refreshCountdown() {
   const mm = String(Math.floor(remain / 60000)).padStart(2, '0');
   const ss = String(Math.floor((remain % 60000) / 1000)).padStart(2, '0');
   el.textContent = `${mm}:${ss}`;
+  if (sub) sub.textContent = `집중 중 · ${mm}:${ss} 뒤 휴식`;
 }
 
 async function loadTodos() {
@@ -568,6 +593,13 @@ async function expandBreakSelectionCard(payload) {
   renderBreakCandidates();
   // 버튼 상태 업데이트
   await updateBreakButtons();
+  // 접근성: 첫 추천에 포커스 이동
+  setTimeout(() => {
+    const first = document.querySelector('#breakCandidateList > div');
+    if (first) { first.setAttribute('tabindex','0'); first.focus(); }
+    const live = document.getElementById('statusLive');
+    if (live) live.textContent = '집중 종료, 휴식 추천이 표시됩니다';
+  }, 0);
 }
 
 function collapseBreakSelectionCard() {
@@ -758,6 +790,8 @@ async function onBreakCandidateSelected() {
   // 선택된 브레이크 저장
   const pendingKey = currentBreakSessionId ? `pendingBreak_${currentBreakSessionId}` : 'pendingBreak';
   await chrome.storage.local.set({ [pendingKey]: selected, pendingBreak: selected });
+  // allow starting after a valid AI recommendation is chosen
+  hasBreakSelected = true; setStartEnabled(true);
   
   // 세션 상태 확인 (타이머 버튼 클릭 시에만 카드가 표시되므로 selecting 단계만 처리)
   const { sessionState } = await chrome.storage.local.get('sessionState');
