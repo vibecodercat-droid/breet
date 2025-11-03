@@ -431,6 +431,7 @@ async function renderTrendChart(){
   const canvas=document.getElementById('trendChart'); if(!canvas) return; const ctx=canvas.getContext('2d'); if(window.trendChart){ window.trendChart.destroy(); }
   window.trendChart=new Chart(ctx,{ type:'line', data:{ labels:daysArr.map(d=>`${d.getMonth()+1}/${d.getDate()}`), datasets:[{ label:'완료율 (%)', data:rates, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.4 }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, max:100 } }, plugins:{ legend:{ display:false } } });
 }
+}
 
 async function renderStreak(){
   const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
