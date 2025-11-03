@@ -1,17 +1,64 @@
 import { toCsvAndDownload } from "../lib/csv.js";
 import { groupByWeekdayCompletion } from "../lib/stats-manager.js";
-import { isSameLocalDay, localDateKey, parseLocalDateKey } from "../lib/date-utils.js";
+import { isSameLocalDay, localDateKey, parseLocalDateKey, startOfLocalDay } from "../lib/date-utils.js";
+
+// 선택된 날짜 상태
+let selectedDate = new Date();
+selectedDate.setHours(0, 0, 0, 0);
+
+/**
+ * 선택된 날짜 표시
+ */
+function renderSelectedDate() {
+  const dateEl = document.getElementById('selectedDate');
+  if (!dateEl) return;
+  
+  const y = selectedDate.getFullYear();
+  const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+  const d = String(selectedDate.getDate()).padStart(2, '0');
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+  const weekday = weekdays[selectedDate.getDay()];
+  
+  dateEl.textContent = `${y}.${m}.${d} (${weekday})`;
+}
+
+/**
+ * 이전 날짜로 이동
+ */
+function goToPrevDate() {
+  selectedDate.setDate(selectedDate.getDate() - 1);
+  renderSelectedDate();
+  refreshSessionStats();
+  refreshTodoStats();
+}
+
+/**
+ * 다음 날짜로 이동
+ */
+function goToNextDate() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(selectedDate);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  if (tomorrow <= today) {
+    selectedDate = tomorrow;
+    renderSelectedDate();
+    refreshSessionStats();
+    refreshTodoStats();
+  }
+}
 
 /**
  * 세션(브레이크) 완료 기준 통계 갱신
  */
 async function refreshSessionStats() {
   const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
-  const today = breakHistory.filter((b) => 
-    isSameLocalDay(Date.parse(b.timestamp || 0), Date.now())
+  const selected = breakHistory.filter((b) => 
+    isSameLocalDay(Date.parse(b.timestamp || 0), selectedDate.getTime())
   );
-  const done = today.filter((b) => b.completed).length;
-  const count = today.length;
+  const done = selected.filter((b) => b.completed).length;
+  const count = selected.length;
   const rate = count ? Math.round((done / count) * 100) : 0;
   
   const doneEl = document.getElementById('sessionDone');
@@ -27,7 +74,7 @@ async function refreshSessionStats() {
  * 투두리스트 기준 통계 갱신
  */
 async function refreshTodoStats() {
-  const dateKey = localDateKey();
+  const dateKey = localDateKey(selectedDate.getTime());
   const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
   const todos = Array.isArray(todosByDate[dateKey]) ? todosByDate[dateKey] : [];
   
@@ -45,6 +92,47 @@ async function refreshTodoStats() {
 }
 
 /**
+ * 주차 정보 계산 (한국 주차 기준: 월요일 시작)
+ */
+function getWeekInfo(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  
+  // 월요일 시작 기준으로 주의 첫날 찾기
+  const dayOfWeek = d.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // 일요일이면 -6, 아니면 1-dayOfWeek
+  const weekStart = new Date(d);
+  weekStart.setDate(d.getDate() + diff);
+  
+  // 주의 마지막날 (일요일)
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  
+  // 몇월 몇주차 계산
+  const month = weekStart.getMonth() + 1;
+  const year = weekStart.getFullYear();
+  
+  // 해당 월의 첫 번째 월요일 찾기
+  const firstDayOfMonth = new Date(year, month - 1, 1);
+  const firstMonday = new Date(firstDayOfMonth);
+  const firstMondayDay = firstDayOfMonth.getDay();
+  const firstMondayDiff = firstMondayDay === 0 ? 1 : 8 - firstMondayDay;
+  firstMonday.setDate(1 + firstMondayDiff - 7);
+  
+  // 주차 계산
+  const weekNumber = Math.floor((weekStart - firstMonday) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  
+  const startStr = `${month}/${weekStart.getDate()}`;
+  const endStr = `${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
+  
+  return {
+    text: `${year}년 ${month}월 ${weekNumber}주차 (${startStr} ~ ${endStr})`,
+    start: weekStart,
+    end: weekEnd
+  };
+}
+
+/**
  * 주간 막대그래프 렌더링 (세션 + 투두 완료율)
  */
 async function renderWeekly() {
@@ -52,6 +140,13 @@ async function renderWeekly() {
     'breakHistory', 
     'todosByDate'
   ]);
+  
+  // 주차 정보 표시
+  const weekInfo = getWeekInfo();
+  const weekInfoEl = document.getElementById('weekInfo');
+  if (weekInfoEl) {
+    weekInfoEl.textContent = weekInfo.text;
+  }
   
   // 세션 기준 주간 통계
   const sessionWeekly = groupByWeekdayCompletion(breakHistory);
@@ -78,12 +173,19 @@ async function renderWeekly() {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   
-  // 기존 차트 업데이트 또는 새로 생성
+  // 기존 차트 업데이트 또는 새로 생성 (방어적 검사)
   if (window.weeklyChartInstance) {
-    window.weeklyChartInstance.data.datasets[0].data = sessionData;
-    window.weeklyChartInstance.data.datasets[1].data = todoData;
-    window.weeklyChartInstance.update('none');
-    return;
+    const inst = window.weeklyChartInstance;
+    const canUpdate = inst && inst.data && Array.isArray(inst.data.datasets) && inst.data.datasets.length >= 2;
+    if (canUpdate) {
+      inst.data.datasets[0].data = sessionData;
+      inst.data.datasets[1].data = todoData;
+      inst.update('none');
+      return;
+    } else {
+      try { inst.destroy(); } catch (_) {}
+      window.weeklyChartInstance = null;
+    }
   }
   
   window.weeklyChartInstance = new window.Chart(ctx, {
@@ -96,32 +198,59 @@ async function renderWeekly() {
           data: sessionData,
           backgroundColor: 'rgba(59, 130, 246, 0.6)',
           borderColor: 'rgba(59, 130, 246, 1)',
-          borderWidth: 1
+          borderWidth: 2
         },
         {
           label: '투두 완료율',
           data: todoData,
           backgroundColor: 'rgba(34, 197, 94, 0.6)',
           borderColor: 'rgba(34, 197, 94, 1)',
-          borderWidth: 1
+          borderWidth: 2
         }
       ]
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       scales: {
+        x: {
+          ticks: {
+            font: {
+              size: 12,
+              weight: 'bold'
+            },
+            color: '#374151'
+          },
+          grid: {
+            display: false
+          }
+        },
         y: {
           beginAtZero: true,
           max: 100,
           ticks: {
+            font: {
+              size: 11
+            },
+            color: '#6B7280',
             callback: (value) => `${value}%`
+          },
+          grid: {
+            color: '#E5E7EB'
           }
         }
       },
       plugins: {
         legend: {
           display: true,
-          position: 'top'
+          position: 'top',
+          labels: {
+            font: {
+              size: 12
+            },
+            usePointStyle: true,
+            padding: 15
+          }
         }
       }
     }
@@ -192,7 +321,7 @@ async function renderAttendanceCalendar() {
     const ringClass = isToday ? 'ring-2 ring-blue-500' : '';
     
     cell.className = `h-8 w-16 rounded text-xs flex items-center justify-center ${ringClass} ${bgClass}`;
-    cell.textContent = date.getDate();
+    cell.textContent = `${date.getMonth()+1}/${date.getDate()}`;
     cell.title = `${key}: ${completed ? '완료' : hasSession ? '시작' : '없음'}`;
     calendar.appendChild(cell);
   });
@@ -262,6 +391,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (exportBtn) {
     exportBtn.addEventListener('click', handleExportCsv);
   }
+  // 날짜 이동 버튼 연결 및 초기 표시
+  const prevBtn = document.getElementById('prevDate');
+  const nextBtn = document.getElementById('nextDate');
+  if (prevBtn) prevBtn.addEventListener('click', goToPrevDate);
+  if (nextBtn) nextBtn.addEventListener('click', goToNextDate);
+  renderSelectedDate();
   
   refreshAllStats();
   setupRealtimeUpdates();
