@@ -213,6 +213,31 @@ async function renderWeekly() {
   const canvas = document.getElementById('weeklyChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  // 막대 위에 퍼센트 라벨을 그리는 간단한 플러그인
+  if (!window._breetBarLabelPlugin) {
+    window._breetBarLabelPlugin = {
+      id: 'breetBarLabel',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        const meta = chart.getDatasetMeta(0);
+        if (!meta || !meta.data) return;
+        ctx.save();
+        ctx.fillStyle = '#374151'; // gray-700
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.font = '12px sans-serif';
+        const data = chart.data.datasets[0].data || [];
+        for (let i = 0; i < meta.data.length; i++) {
+          const element = meta.data[i];
+          const value = typeof data[i] === 'number' ? data[i] : null;
+          if (!element || value === null || isNaN(value)) continue;
+          const { x, y } = element.tooltipPosition();
+          ctx.fillText(String(value) + '%', x, y - 6);
+        }
+        ctx.restore();
+      }
+    };
+  }
   if (window.weeklyChartInstance) {
     const inst = window.weeklyChartInstance;
     const sameLen = inst && inst.data && Array.isArray(inst.data.labels) && inst.data.labels.length === labels.length;
@@ -234,7 +259,8 @@ async function renderWeekly() {
         { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
       ]
     },
-    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } } }
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } } },
+    plugins: [window._breetBarLabelPlugin]
   });
 }
 
