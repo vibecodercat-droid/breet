@@ -213,58 +213,12 @@ async function renderWeekly() {
   const canvas = document.getElementById('weeklyChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  // 막대 위에 퍼센트 라벨을 그리는 간단한 플러그인
-  if (!window._breetBarLabelPlugin) {
-    window._breetBarLabelPlugin = {
-      id: 'breetBarLabel',
-      afterDatasetsDraw(chart) {
-        const { ctx } = chart;
-        const meta = chart.getDatasetMeta(0);
-        if (!meta || !meta.data) return;
-        ctx.save();
-        ctx.fillStyle = '#374151'; // gray-700
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.font = '12px sans-serif';
-        const data = chart.data.datasets[0].data || [];
-        for (let i = 0; i < meta.data.length; i++) {
-          const element = meta.data[i];
-          const value = typeof data[i] === 'number' ? data[i] : null;
-          if (!element || value === null || isNaN(value)) continue;
-          const { x, y } = element.tooltipPosition();
-          ctx.fillText(String(value) + '%', x, y - 6);
-        }
-        ctx.restore();
-      }
-    };
-    try {
-      if (window.Chart) {
-        if (typeof window.Chart.register === 'function') {
-          // Chart.js v3+
-          window.Chart.register(window._breetBarLabelPlugin);
-        } else if (window.Chart.plugins && typeof window.Chart.plugins.register === 'function') {
-          // Chart.js v2
-          window.Chart.plugins.register(window._breetBarLabelPlugin);
-        }
-      }
-    } catch (_) {}
-  }
   if (window.weeklyChartInstance) {
     const inst = window.weeklyChartInstance;
     const sameLen = inst && inst.data && Array.isArray(inst.data.labels) && inst.data.labels.length === labels.length;
     if (sameLen) {
       inst.data.labels = labels;
       inst.data.datasets[0].data = todoData;
-      // 툴팁 형식 보장
-      if (!inst.options.plugins) inst.options.plugins = {};
-      if (!inst.options.plugins.tooltip) inst.options.plugins.tooltip = {};
-      inst.options.plugins.tooltip.enabled = true;
-      inst.options.plugins.tooltip.callbacks = {
-        label: function(context){
-          const v = context.parsed.y != null ? context.parsed.y : context.raw;
-          return '완료율: ' + String(v) + '%';
-        }
-      };
       inst.update('none');
       return;
     } else {
@@ -280,23 +234,7 @@ async function renderWeekly() {
         { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
       ]
     },
-    options: { 
-      responsive: true, 
-      maintainAspectRatio: false, 
-      scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } },
-      plugins: {
-        tooltip: {
-          enabled: true,
-          callbacks: {
-            label: function(context){
-              const v = context.parsed.y != null ? context.parsed.y : context.raw;
-              return '완료율: ' + String(v) + '%';
-            }
-          }
-        }
-      }
-    },
-    plugins: [window._breetBarLabelPlugin]
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } } }
   });
 }
 
