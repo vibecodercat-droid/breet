@@ -504,8 +504,17 @@ async function renderHourlyHeatmap(){
   const grid=Array(7).fill(0).map(()=>Array(24).fill(0));
   breakHistory.filter(b=>b.completed).forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=startTs && ts<=endTs)) return; const d=new Date(ts); const idx=(d.getDay()===0)?6:(d.getDay()-1); grid[idx][d.getHours()]++; });
   const container=document.getElementById('hourlyHeatmap'); if(!container) return; const max=Math.max(0,...grid.flat());
-  const days=['월','화','수','목','금','토','일']; let html='<div class="inline-flex flex-col gap-1">';
-  days.forEach((day,di)=>{ html+='<div class="flex gap-1">'; html+=`<div class="w-8 text-xs flex items-center justify-end pr-1">${day}</div>`; for(let h=0;h<24;h++){ const c=grid[di][h]; const t=max?c/max:0; const color=t===0?'#f3f4f6': t<0.33?'#dbeafe': t<0.66?'#93c5fd':'#3b82f6'; html+=`<div class="w-4 h-4 rounded-sm" style=\"background-color:${color}\" title=\"${day} ${h}시: ${c}회\"></div>`;} html+='</div>'; }); html+='</div>';
+  const days=['월','화','수','목','금','토','일'];
+  const boxW = 16*1.3; // 너비 1.3배
+  const boxH = 16;     // 높이는 기존 유지
+  let html='<div class="inline-flex flex-col gap-1">';
+  // 시간대 헤더
+  html+='<div class="flex gap-1 items-end">';
+  html+='<div class="w-8"></div>';
+  for(let h=0; h<24; h++){ html+=`<div class="text-[10px] text-gray-500 text-center" style="width:${boxW}px">${h}</div>`; }
+  html+='</div>';
+  // 데이터 행
+  days.forEach((day,di)=>{ html+='<div class="flex gap-1">'; html+=`<div class="w-8 text-xs flex items-center justify-end pr-1">${day}</div>`; for(let h=0;h<24;h++){ const c=grid[di][h]; const t=max?c/max:0; const color=t===0?'#f3f4f6': t<0.33?'#dbeafe': t<0.66?'#93c5fd':'#3b82f6'; html+=`<div class="rounded-sm" style=\"width:${boxW}px;height:${boxH}px;background-color:${color}\" title=\"${day} ${h}시: ${c}회\"></div>`;} html+='</div>'; }); html+='</div>';
   container.innerHTML=html;
   const weekInfoHeat = document.getElementById('weekInfoHeat'); if (weekInfoHeat) weekInfoHeat.textContent = labelText;
 }
