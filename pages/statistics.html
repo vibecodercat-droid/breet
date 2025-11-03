@@ -12,14 +12,21 @@
       
       <!-- 일별 통계 (숫자) -->
       <section class="bg-white rounded-lg shadow-sm p-4 space-y-4">
-        <h2 class="text-base font-semibold mb-2">일별 통계</h2>
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-base font-semibold">일별 통계</h2>
+          <div class="flex items-center gap-2">
+            <button id="prevDate" class="px-2 py-1 rounded text-sm bg-gray-200 hover:bg-gray-300">←</button>
+            <div id="selectedDate" class="text-sm font-medium text-gray-700 min-w-[100px] text-center"></div>
+            <button id="nextDate" class="px-2 py-1 rounded text-sm bg-gray-200 hover:bg-gray-300">→</button>
+          </div>
+        </div>
         
         <!-- 세션 완료 기준 -->
         <div class="border-b pb-3 mb-3">
           <h3 class="text-sm font-medium text-gray-700 mb-2">세션 완료 기준</h3>
           <div class="grid grid-cols-3 gap-4">
-            <div><div class="text-sm text-gray-500">오늘 완료</div><div id="sessionDone" class="text-2xl font-semibold">0</div></div>
-            <div><div class="text-sm text-gray-500">오늘 쉼 횟수</div><div id="sessionCount" class="text-2xl font-semibold">0</div></div>
+            <div><div class="text-sm text-gray-500">완료</div><div id="sessionDone" class="text-2xl font-semibold">0</div></div>
+            <div><div class="text-sm text-gray-500">쉼 횟수</div><div id="sessionCount" class="text-2xl font-semibold">0</div></div>
             <div><div class="text-sm text-gray-500">완료율</div><div id="sessionRate" class="text-2xl font-semibold">0%</div></div>
           </div>
         </div>
@@ -28,8 +35,8 @@
         <div>
           <h3 class="text-sm font-medium text-gray-700 mb-2">투두리스트 기준</h3>
           <div class="grid grid-cols-3 gap-4">
-            <div><div class="text-sm text-gray-500">오늘 완료</div><div id="todoDone" class="text-2xl font-semibold">0</div></div>
-            <div><div class="text-sm text-gray-500">오늘 전체</div><div id="todoTotal" class="text-2xl font-semibold">0</div></div>
+            <div><div class="text-sm text-gray-500">완료</div><div id="todoDone" class="text-2xl font-semibold">0</div></div>
+            <div><div class="text-sm text-gray-500">전체</div><div id="todoTotal" class="text-2xl font-semibold">0</div></div>
             <div><div class="text-sm text-gray-500">완료율</div><div id="todoRate" class="text-2xl font-semibold">0%</div></div>
           </div>
         </div>
@@ -37,7 +44,18 @@
       
       <!-- 주간 막대그래프 -->
       <section class="bg-white rounded-lg shadow-sm p-4">
-        <h2 class="text-base font-semibold mb-2">주간 완료율</h2>
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-base font-semibold">주간 완료율</h2>
+          <div class="flex items-center gap-3">
+            <label class="flex items-center gap-1 text-xs text-gray-600">
+              <input id="toggleSession" type="checkbox" class="form-checkbox" checked /> 세션 기준
+            </label>
+            <label class="flex items-center gap-1 text-xs text-gray-600">
+              <input id="toggleTodo" type="checkbox" class="form-checkbox" checked /> 투두 기준
+            </label>
+            <div id="weekInfo" class="text-xs text-gray-600"></div>
+          </div>
+        </div>
         <canvas id="weeklyChart" width="600" height="250"></canvas>
       </section>
       

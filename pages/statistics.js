@@ -173,6 +173,10 @@ async function renderWeekly() {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   
+  // 토글 상태 읽기
+  const showSession = (document.getElementById('toggleSession')?.checked) !== false;
+  const showTodo = (document.getElementById('toggleTodo')?.checked) !== false;
+
   // 기존 차트 업데이트 또는 새로 생성 (방어적 검사)
   if (window.weeklyChartInstance) {
     const inst = window.weeklyChartInstance;
@@ -180,6 +184,8 @@ async function renderWeekly() {
     if (canUpdate) {
       inst.data.datasets[0].data = sessionData;
       inst.data.datasets[1].data = todoData;
+      inst.data.datasets[0].hidden = !showSession;
+      inst.data.datasets[1].hidden = !showTodo;
       inst.update('none');
       return;
     } else {
@@ -198,14 +204,16 @@ async function renderWeekly() {
           data: sessionData,
           backgroundColor: 'rgba(59, 130, 246, 0.6)',
           borderColor: 'rgba(59, 130, 246, 1)',
-          borderWidth: 2
+          borderWidth: 2,
+          hidden: !showSession
         },
         {
           label: '투두 완료율',
           data: todoData,
           backgroundColor: 'rgba(34, 197, 94, 0.6)',
           borderColor: 'rgba(34, 197, 94, 1)',
-          borderWidth: 2
+          borderWidth: 2,
+          hidden: !showTodo
         }
       ]
     },
@@ -391,6 +399,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (exportBtn) {
     exportBtn.addEventListener('click', handleExportCsv);
   }
+  // 인터랙티브 토글 리스너
+  const ts = document.getElementById('toggleSession');
+  const tt = document.getElementById('toggleTodo');
+  if (ts) ts.addEventListener('change', renderWeekly);
+  if (tt) tt.addEventListener('change', renderWeekly);
   // 날짜 이동 버튼 연결 및 초기 표시
   const prevBtn = document.getElementById('prevDate');
   const nextBtn = document.getElementById('nextDate');
