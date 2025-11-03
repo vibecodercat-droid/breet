@@ -330,7 +330,7 @@ async function refreshCountdown() {
     setControlsEnabled(!!selectedMode);
     if (sub) {
       const p = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
-      sub.textContent = `시작을 누르면 ${p.work}분 집중 후 ${p.rest}분 휴식`;
+      sub.textContent = `${p.work}분 집중 후 ${p.rest}분 휴식`;
     }
     return;
   }
