@@ -148,35 +148,53 @@ async function renderWeekly() {
     'todosByDate'
   ]);
   
-  // 주차 정보 표시
+  // 기간 정보 계산 및 표시 (주간/월간)
   const weekInfo = getWeekInfo(new Date(), weekOffset);
+  const now = new Date();
+  const monthBase = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const monthStart = new Date(monthBase.getFullYear(), monthBase.getMonth(), 1);
+  const monthEnd = new Date(monthBase.getFullYear(), monthBase.getMonth()+1, 0);
+  const startTs = (periodMode==='week' ? weekInfo.start : monthStart).getTime();
+  const endRef = (periodMode==='week' ? weekInfo.end : monthEnd);
+  const endTs = new Date(endRef.getFullYear(), endRef.getMonth(), endRef.getDate(), 23,59,59,999).getTime();
   const weekInfoEl = document.getElementById('weekInfo');
   if (weekInfoEl) {
-    weekInfoEl.textContent = weekInfo.text;
+    weekInfoEl.textContent = (periodMode==='week')
+      ? weekInfo.text
+      : `${monthStart.getFullYear()}년 ${monthStart.getMonth()+1}월 (${monthStart.getMonth()+1}/1 ~ ${monthEnd.getMonth()+1}/${monthEnd.getDate()})`;
   }
-  const startTs = weekInfo.start.getTime();
-  const endTs = new Date(weekInfo.end.getFullYear(), weekInfo.end.getMonth(), weekInfo.end.getDate(), 23,59,59,999).getTime();
   
-  // 세션 기준 주간 통계 (월~일)
-  const sessionCounts = Array.from({ length: 7 }, () => ({ total: 0, completed: 0 }));
+  // 세션 기준 통계 (주간: 월~일, 월간: 1..마지막일)
+  const bucketLen = (periodMode==='week') ? 7 : monthEnd.getDate();
+  const sessionCounts = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
   for (const b of breakHistory) {
     const ts = Date.parse(b.timestamp || 0);
     if (!(ts >= startTs && ts <= endTs)) continue;
-    const gd = new Date(ts).getDay();
-    const idx = (gd === 0) ? 6 : (gd - 1);
+    let idx;
+    if (periodMode==='week') {
+      const gd = new Date(ts).getDay();
+      idx = (gd === 0) ? 6 : (gd - 1);
+    } else {
+      idx = new Date(ts).getDate() - 1;
+    }
     sessionCounts[idx].total += 1;
     if (b.completed) sessionCounts[idx].completed += 1;
   }
   const sessionData = sessionCounts.map(c => c.total ? Math.round((c.completed / c.total) * 100) : 0);
   
   // 투두 기준 주간 통계
-  const todoWeekly = Array.from({ length: 7 }, () => ({ total: 0, completed: 0 }));
+  const todoWeekly = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
   for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
     if (!Array.isArray(todos)) continue;
     const ts = parseLocalDateKey(dateKeyStr);
     if (!(ts >= startTs && ts <= endTs)) continue;
-    const dayOfWeek = new Date(ts).getDay();
-    const idx = (dayOfWeek === 0) ? 6 : (dayOfWeek - 1);
+    let idx;
+    if (periodMode==='week') {
+      const dayOfWeek = new Date(ts).getDay();
+      idx = (dayOfWeek === 0) ? 6 : (dayOfWeek - 1);
+    } else {
+      idx = new Date(ts).getDate() - 1;
+    }
     todos.forEach((todo) => {
       todoWeekly[idx].total += 1;
       if (todo.completed) todoWeekly[idx].completed += 1;
@@ -206,7 +224,7 @@ async function renderWeekly() {
   window.weeklyChartInstance = new window.Chart(ctx, {
     type: 'bar',
     data: {
-      labels: ['월','화','수','목','금','토','일'],
+      labels: (periodMode==='week') ? ['월','화','수','목','금','토','일'] : Array.from({length: bucketLen}, (_,i)=> String(i+1)),
       datasets: [
         { label: '세션 완료율', data: sessionData, backgroundColor: 'rgba(59, 130, 246, 0.6)', borderColor: 'rgba(59,130,246,1)', borderWidth: 2 },
         { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
@@ -369,11 +387,45 @@ document.addEventListener('DOMContentLoaded', () => {
   const nextWeekBtn = document.getElementById('nextWeek');
   const prevWeekHeat = document.getElementById('prevWeekHeat');
   const nextWeekHeat = document.getElementById('nextWeekHeat');
-  function moveWeek(delta){ weekOffset = Math.min(0, weekOffset + delta); renderWeekly(); renderHourlyHeatmap(); }
+  function moveWeek(delta){
+    if (periodMode==='week') {
+      weekOffset = Math.min(0, weekOffset + delta);
+    } else {
+      monthOffset = Math.min(0, monthOffset + delta);
+    }
+    renderWeekly(); renderHourlyHeatmap(); renderTypeDistribution(); renderTrendChart();
+  }
   if (prevWeekBtn) prevWeekBtn.addEventListener('click', ()=>moveWeek(-1));
   if (nextWeekBtn) nextWeekBtn.addEventListener('click', ()=>moveWeek(1));
   if (prevWeekHeat) prevWeekHeat.addEventListener('click', ()=>moveWeek(-1));
   if (nextWeekHeat) nextWeekHeat.addEventListener('click', ()=>moveWeek(1));
+
+  // 주/월 모드 토글(모든 섹션 공통 적용)
+  function setMode(mode){
+    periodMode = mode;
+    // 버튼 스타일 토글
+    [['weeklyModeWeek','weeklyModeMonth'],['heatModeWeek','heatModeMonth'],['typeModeWeek','typeModeMonth'],['trendModeWeek','trendModeMonth']].forEach(([w,m])=>{
+      const wb=document.getElementById(w), mb=document.getElementById(m);
+      if (wb && mb){
+        if (mode==='week'){ wb.classList.add('bg-white'); mb.classList.remove('bg-white'); }
+        else { mb.classList.add('bg-white'); wb.classList.remove('bg-white'); }
+      }
+    });
+    renderWeekly(); renderHourlyHeatmap(); renderTypeDistribution(); renderTrendChart();
+  }
+  const wmw=document.getElementById('weeklyModeWeek'); if(wmw) wmw.addEventListener('click', ()=>setMode('week'));
+  const wmm=document.getElementById('weeklyModeMonth'); if(wmm) wmm.addEventListener('click', ()=>setMode('month'));
+  const hmw=document.getElementById('heatModeWeek'); if(hmw) hmw.addEventListener('click', ()=>setMode('week'));
+  const hmm=document.getElementById('heatModeMonth'); if(hmm) hmm.addEventListener('click', ()=>setMode('month'));
+  const tmw=document.getElementById('typeModeWeek'); if(tmw) tmw.addEventListener('click', ()=>setMode('week'));
+  const tmm=document.getElementById('typeModeMonth'); if(tmm) tmm.addEventListener('click', ()=>setMode('month'));
+  const trmw=document.getElementById('trendModeWeek'); if(trmw) trmw.addEventListener('click', ()=>setMode('week'));
+  const trmm=document.getElementById('trendModeMonth'); if(trmm) trmm.addEventListener('click', ()=>setMode('month'));
+
+  // 트렌드 전용 네비(주/월 공통)
+  const prevTrend=document.getElementById('prevTrend'); const nextTrend=document.getElementById('nextTrend');
+  if (prevTrend) prevTrend.addEventListener('click', ()=>moveWeek(-1));
+  if (nextTrend) nextTrend.addEventListener('click', ()=>moveWeek(1));
   
   refreshAllStats();
   setupRealtimeUpdates();
@@ -429,8 +481,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function renderTypeDistribution(){
   const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
+  const now=new Date();
+  const wInfo=getWeekInfo(new Date(), weekOffset);
+  const mBase=new Date(now.getFullYear(), now.getMonth()+monthOffset, 1);
+  const mStart=new Date(mBase.getFullYear(), mBase.getMonth(), 1);
+  const mEnd=new Date(mBase.getFullYear(), mBase.getMonth()+1, 0);
+  const sTs=(periodMode==='week'?wInfo.start:mStart).getTime();
+  const eRef=(periodMode==='week'?wInfo.end:mEnd);
+  const eTs=new Date(eRef.getFullYear(), eRef.getMonth(), eRef.getDate(), 23,59,59,999).getTime();
   const counts={}; const names={eyeExercise:'눈 운동',stretching:'스트레칭',breathing:'호흡',hydration:'수분',movement:'움직임'};
-  breakHistory.filter(b=>b.completed).forEach(b=>{ const k=names[b.breakType]||b.breakType||'기타'; counts[k]=(counts[k]||0)+1; });
+  breakHistory.filter(b=>b.completed).forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=sTs&&ts<=eTs)) return; const k=names[b.breakType]||b.breakType||'기타'; counts[k]=(counts[k]||0)+1; });
   const canvas=document.getElementById('typeDistributionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
   if(window.typeChart) { window.typeChart.destroy(); }
   window.typeChart = new Chart(ctx,{ type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
@@ -453,31 +513,28 @@ async function renderHourlyHeatmap(){
 async function renderTrendChart(){
   const store = await chrome.storage.local.get('breakHistory');
   const breakHistory = Array.isArray(store.breakHistory) ? store.breakHistory : [];
-  var daysArr = [];
-  for (var i = 0; i < 30; i++) {
-    var d = new Date();
-    d.setDate(d.getDate() - (29 - i));
-    d.setHours(0, 0, 0, 0);
-    daysArr.push(d);
-  }
-  var rates = [];
-  for (var j = 0; j < daysArr.length; j++) {
-    var dayDate = daysArr[j];
-    var dayList = [];
-    for (var k = 0; k < breakHistory.length; k++) {
-      var b = breakHistory[k];
-      var ts = Date.parse(b.timestamp || 0);
-      if (isSameLocalDay(ts, dayDate.getTime())) dayList.push(b);
+  var labels = [], rates = [];
+  if (periodMode==='week') {
+    var daysArr = [];
+    for (var i = 0; i < 30; i++) { var d = new Date(); d.setDate(d.getDate() - (29 - i)); d.setHours(0,0,0,0); daysArr.push(d); }
+    for (var j = 0; j < daysArr.length; j++) {
+      var dayDate = daysArr[j]; var total=0, comp=0;
+      for (var k = 0; k < breakHistory.length; k++) { var b = breakHistory[k]; var ts = Date.parse(b.timestamp||0); if (isSameLocalDay(ts, dayDate.getTime())) { total++; if (b.completed) comp++; } }
+      rates.push(total ? Math.round((comp/total)*100) : 0);
+      labels.push((dayDate.getMonth()+1) + '/' + dayDate.getDate());
     }
-    var total = dayList.length;
-    var comp = 0;
-    for (var m = 0; m < dayList.length; m++) if (dayList[m].completed) comp++;
-    rates.push(total ? Math.round((comp / total) * 100) : 0);
-  }
-  var labels = [];
-  for (var n = 0; n < daysArr.length; n++) {
-    var dd = daysArr[n];
-    labels.push((dd.getMonth() + 1) + '/' + dd.getDate());
+  } else {
+    var now = new Date(); var base = new Date(now.getFullYear(), now.getMonth()+monthOffset, 1);
+    var mStart = new Date(base.getFullYear(), base.getMonth(), 1);
+    var mEnd = new Date(base.getFullYear(), base.getMonth()+1, 0);
+    var startTs = mStart.getTime(); var endTs = new Date(mEnd.getFullYear(), mEnd.getMonth(), mEnd.getDate(), 23,59,59,999).getTime();
+    for (var d=1; d<=mEnd.getDate(); d++) {
+      var day = new Date(mStart.getFullYear(), mStart.getMonth(), d);
+      var total=0, comp=0; var dayStart=day.getTime(); var dayEnd=dayStart+24*60*60*1000-1;
+      for (var k=0;k<breakHistory.length;k++){ var b=breakHistory[k]; var ts=Date.parse(b.timestamp||0); if (ts>=dayStart && ts<=dayEnd && ts>=startTs && ts<=endTs){ total++; if (b.completed) comp++; } }
+      rates.push(total? Math.round((comp/total)*100):0); labels.push(String(d));
+    }
+    var trendInfo = document.getElementById('trendInfo'); if(trendInfo) trendInfo.textContent = `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`;
   }
   var canvas = document.getElementById('trendChart');
   if (!canvas) return;
