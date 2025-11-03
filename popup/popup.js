@@ -460,7 +460,15 @@ async function renderDaySummary() {
   const ampm = h >= 12 ? 'PM' : 'AM';
   h = h % 12; if (h === 0) h = 12; const hh12 = String(h).padStart(2,'0');
   const action = last.breakName || last.breakType || '';
-  el.textContent = `${label} 실행 · (${action}) · ${ampm} ${hh12}:${mm}`;
+  // 상단: "라벨 실행 · 브레이크명" (괄호 제거),
+  // 하단: 시간, 그리고 옅은 구분선
+  const topLine = `${label} 실행 · ${action}`.trim();
+  const timeLine = `${ampm} ${hh12}:${mm}`;
+  el.innerHTML = `
+    <div>${topLine}</div>
+    <div class="text-gray-600 mt-0.5">${timeLine}</div>
+    <div class="mt-2 border-t border-gray-200"></div>
+  `;
 }
 
 // 브레이크 선택 카드 관련 함수들
