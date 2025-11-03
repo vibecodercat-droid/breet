@@ -314,12 +314,18 @@ function setupRealtimeUpdates() {
       refreshSessionStats();
       renderWeekly();
       renderAttendanceCalendar();
+      renderTypeDistribution();
+      renderTrendChart();
+      renderHourlyHeatmap();
+      renderStreak();
+      generateAIAnalysis();
     }
     
     if (changes.todosByDate) {
       setTimeout(() => {
         refreshTodoStats();
         renderWeekly();
+        generateAIAnalysis();
       }, 100);
     }
   });
@@ -345,7 +351,12 @@ async function refreshAllStats() {
     refreshSessionStats(),
     refreshTodoStats(),
     renderWeekly(),
-    renderAttendanceCalendar()
+    renderAttendanceCalendar(),
+    renderTypeDistribution(),
+    renderTrendChart(),
+    renderHourlyHeatmap(),
+    renderStreak(),
+    generateAIAnalysis()
   ]);
 }
 
@@ -380,4 +391,154 @@ document.addEventListener('DOMContentLoaded', () => {
   
   refreshAllStats();
   setupRealtimeUpdates();
+  // AI 분석 새로고침 버튼
+  const refreshBtn = document.getElementById('refreshAnalysis');
+  if (refreshBtn) refreshBtn.addEventListener('click', generateAIAnalysis);
+
+  // 🧪 테스트 데이터 버튼 바인딩
+  const genBtn = document.getElementById('generateTestData');
+  const clrBtn = document.getElementById('clearTestData');
+  const expBtn = document.getElementById('exportTestData');
+  const impBtn = document.getElementById('importTestData');
+  const scPerfect = document.getElementById('scenarioPerfect');
+  const scBeginner = document.getElementById('scenarioBeginner');
+  const scImproving = document.getElementById('scenarioImproving');
+  const scMonday = document.getElementById('scenarioMonday');
+  if (genBtn) genBtn.addEventListener('click', async ()=>{
+    if(!confirm('테스트 데이터를 생성하시겠습니까? 기존 데이터가 덮어씌워집니다.')) return;
+    genBtn.textContent='생성 중...'; genBtn.disabled=true;
+    await generateTestData(); alert('테스트 데이터 생성 완료!'); location.reload();
+  });
+  if (clrBtn) clrBtn.addEventListener('click', async ()=>{
+    if(!confirm('모든 데이터를 삭제하시겠습니까?')) return;
+    await chrome.storage.local.clear(); alert('데이터 초기화 완료!'); location.reload();
+  });
+  if (expBtn) expBtn.addEventListener('click', exportTestData);
+  if (impBtn) impBtn.addEventListener('click', importTestData);
+  if (scPerfect) scPerfect.addEventListener('click', async ()=>{ await generatePerfectUserData(); alert('완벽 시나리오 생성!'); location.reload(); });
+  if (scBeginner) scBeginner.addEventListener('click', async ()=>{ await generateBeginnerUserData(); alert('초보 시나리오 생성!'); location.reload(); });
+  if (scImproving) scImproving.addEventListener('click', async ()=>{ await generateImprovingUserData(); alert('개선 시나리오 생성!'); location.reload(); });
+  if (scMonday) scMonday.addEventListener('click', async ()=>{ await generateMondayUserData(); alert('월요일 패턴 시나리오 생성!'); location.reload(); });
 });
+
+// ----------- AI 분석 및 추가 시각화 -----------
+
+async function collectAnalysisData() {
+  const { breakHistory = [], todosByDate = {} } = await chrome.storage.local.get(['breakHistory','todosByDate']);
+  const now = Date.now();
+  const weekAgo = now - 7*24*60*60*1000;
+  const twoWeeksAgo = now - 14*24*60*60*1000;
+  const thisWeek = breakHistory.filter(b => Date.parse(b.timestamp||0) >= weekAgo);
+  const lastWeek = breakHistory.filter(b => { const ts = Date.parse(b.timestamp||0); return ts >= twoWeeksAgo && ts < weekAgo; });
+  const rate = (arr)=> arr.length? arr.filter(b=>b.completed).length/arr.length : 0;
+  const weekdayStats = Array(7).fill(0).map(()=>({total:0, completed:0}));
+  thisWeek.forEach(b=>{ const d=new Date(b.timestamp).getDay(); weekdayStats[d].total++; if(b.completed) weekdayStats[d].completed++; });
+  const typeDistribution = {}; thisWeek.filter(b=>b.completed).forEach(b=>{ typeDistribution[b.breakType] = (typeDistribution[b.breakType]||0)+1; });
+  const todoCounts = { total:0, completed:0 };
+  Object.values(todosByDate).forEach(tl=>{ if(!Array.isArray(tl)) return; tl.forEach(t=>{ todoCounts.total++; if(t.completed) todoCounts.completed++; }); });
+  return {
+    thisWeek:{ total:thisWeek.length, completed:thisWeek.filter(b=>b.completed).length, rate:rate(thisWeek) },
+    lastWeek:{ total:lastWeek.length, completed:lastWeek.filter(b=>b.completed).length, rate:rate(lastWeek) },
+    weekdayStats, typeDistribution, todoCounts, trend: rate(thisWeek)-rate(lastWeek)
+  };
+}
+
+function generateRuleBasedAnalysis(data){
+  const thisRate = Math.round((data.thisWeek.rate||0)*100);
+  const trend = Math.round((data.trend||0)*100);
+  let weeklySummary = thisRate>=80? `훌륭해요! 이번 주 ${thisRate}% 완료 🎉` : thisRate>=60? `좋아요! 이번 주 ${thisRate}% 완료 👍` : thisRate>=40? `꾸준히 가는 중, ${thisRate}% 완료 💪` : `이번 주 다시 시작해봐요 ${thisRate}% 완료 🌱`;
+  const best = data.weekdayStats.map((s,i)=>({i, r: s.total? s.completed/s.total:0})).sort((a,b)=>b.r-a.r)[0]||{i:0};
+  const names=['일요일','월요일','화요일','수요일','목요일','금요일','토요일'];
+  let pattern = trend>10? `지난주 대비 ${trend}%p 향상! ${names[best.i]} 집중력이 좋아요.` : trend<-10? `지난주 대비 ${Math.abs(trend)}%p 하락. ${names[best.i]} 패턴을 살려보세요.` : `안정적이에요. ${names[best.i]}이 베스트 데이.`;
+  const suggestions=[]; if(thisRate<60){ suggestions.push('알림 시간을 조정해보세요'); suggestions.push('짧은 타이머(15/3)로 시작'); } else { suggestions.push('현재 루틴 유지'); suggestions.push('긴 타이머(50/10)에 도전'); }
+  const types = { eyeExercise:'눈 운동', stretching:'스트레칭', breathing:'호흡', hydration:'수분 섭취', movement:'움직임' };
+  const least = Object.keys(types).find(t=>!data.typeDistribution[t]); if(least) suggestions.push(`${types[least]}을 더 자주 시도`);
+  return { weeklySummary, pattern, suggestions: suggestions.slice(0,3) };
+}
+
+async function generateAIAnalysis(){
+  const loading=document.getElementById('analysisLoading'); const weekly=document.querySelector('#weeklyInsight p'); const pattern=document.querySelector('#patternInsight p'); const sug=document.querySelector('#suggestionInsight ul');
+  if(loading) loading.classList.remove('hidden');
+  try{
+    const data = await collectAnalysisData();
+    const out = generateRuleBasedAnalysis(data); // 폴백(기본)
+    if(weekly) weekly.textContent = out.weeklySummary;
+    if(pattern) pattern.textContent = out.pattern;
+    if(sug){ sug.innerHTML=''; out.suggestions.forEach(t=>{ const li=document.createElement('li'); li.textContent=t; sug.appendChild(li); }); }
+  }catch(e){ console.error('[AI Analysis] error', e); }
+  finally{ if(loading) loading.classList.add('hidden'); }
+}
+
+async function renderTypeDistribution(){
+  const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
+  const counts={}; const names={eyeExercise:'눈 운동',stretching:'스트레칭',breathing:'호흡',hydration:'수분',movement:'움직임'};
+  breakHistory.filter(b=>b.completed).forEach(b=>{ const k=names[b.breakType]||b.breakType||'기타'; counts[k]=(counts[k]||0)+1; });
+  const canvas=document.getElementById('typeDistributionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
+  if(window.typeChart) { window.typeChart.destroy(); }
+  window.typeChart = new Chart(ctx,{ type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
+}
+
+async function renderHourlyHeatmap(){
+  const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
+  const grid=Array(7).fill(0).map(()=>Array(24).fill(0));
+  breakHistory.filter(b=>b.completed).forEach(b=>{ const d=new Date(b.timestamp); grid[d.getDay()][d.getHours()]++; });
+  const container=document.getElementById('hourlyHeatmap'); if(!container) return; const max=Math.max(0,...grid.flat());
+  const days=['일','월','화','수','목','금','토']; let html='<div class="inline-flex flex-col gap-1">';
+  days.forEach((day,di)=>{ html+='<div class="flex gap-1">'; html+=`<div class="w-8 text-xs flex items-center justify-end pr-1">${day}</div>`; for(let h=0;h<24;h++){ const c=grid[di][h]; const t=max?c/max:0; const color=t===0?'#f3f4f6': t<0.33?'#dbeafe': t<0.66?'#93c5fd':'#3b82f6'; html+=`<div class="w-4 h-4 rounded-sm" style="background-color:${color}" title="${day} ${h}시: ${c}회"></div>`;} html+='</div>'; }); html+='</div>';
+  container.innerHTML=html;
+}
+
+async function renderTrendChart(){
+  const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
+  const daysArr=Array.from({length:30},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(29-i)); d.setHours(0,0,0,0); return d; });
+  const rates=daysArr.map(d=>{ const day=breakHistory.filter(b=> isSameLocalDay(Date.parse(b.timestamp||0), d.getTime())); const total=day.length; const comp=day.filter(b=>b.completed).length; return total? Math.round(comp/total*100):0; });
+  const canvas=document.getElementById('trendChart'); if(!canvas) return; const ctx=canvas.getContext('2d'); if(window.trendChart){ window.trendChart.destroy(); }
+  window.trendChart=new Chart(ctx,{ type:'line', data:{ labels:daysArr.map(d=>`${d.getMonth()+1}/${d.getDate()}`), datasets:[{ label:'완료율 (%)', data:rates, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.4 }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, max:100 } }, plugins:{ legend:{ display:false } } });
+}
+
+async function renderStreak(){
+  const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
+  const set=new Set(); breakHistory.filter(b=>b.completed).forEach(b=> set.add(localDateKey(Date.parse(b.timestamp||0))) );
+  let current=0; let d=new Date(); d.setHours(0,0,0,0); while(set.has(localDateKey(d.getTime()))){ current++; d.setDate(d.getDate()-1); }
+  const sorted=[...set].sort(); let longest=0, tmp=0; for(let i=0;i<sorted.length;i++){ if(i===0){ tmp=1; } else { const diff=(parseLocalDateKey(sorted[i])-parseLocalDateKey(sorted[i-1]))/(24*60*60*1000); if(diff===1) tmp++; else { longest=Math.max(longest,tmp); tmp=1; } } } longest=Math.max(longest,tmp);
+  const curEl=document.getElementById('currentStreak'); const longEl=document.getElementById('longestStreak'); if(curEl) curEl.textContent=current; if(longEl) longEl.textContent=longest;
+}
+
+// ------------------ 🧪 테스트 데이터 생성기 ------------------
+async function generateTestData(){
+  const now=Date.now(); const types=['eyeExercise','stretching','breathing','hydration','movement'];
+  const typeNames={ eyeExercise:'눈 운동 20-20-20', stretching:'목 스트레칭', breathing:'박스 호흡', hydration:'물 마시기', movement:'제자리 걷기' };
+  const breakHistory=[];
+  for(let day=0; day<30; day++){
+    const date=new Date(now-(29-day)*24*60*60*1000); const isWeekend=[0,6].includes(date.getDay());
+    const sessions=isWeekend? (Math.floor(Math.random()*3)+1) : (Math.floor(Math.random()*6)+3);
+    for(let s=0; s<sessions; s++){
+      const hour=9+Math.floor(Math.random()*9); const minute=Math.floor(Math.random()*60);
+      const ts=new Date(date); ts.setHours(hour,minute,0,0);
+      const recentBonus=(day/30)*0.2; const base=0.6+recentBonus; const completed=Math.random()<base;
+      const type=types[Math.floor(Math.random()*types.length)]; const workDur=[25,50,15,1][Math.floor(Math.random()*4)];
+      const breakDur= workDur===25?5: workDur===50?10: workDur===15?3:1;
+      breakHistory.push({ id:ts.getTime()+s, breakId:`${type}_${s}`, breakType:type, breakName:`${breakDur}분 ${typeNames[type]}`, duration:breakDur, workDuration:workDur, label:`${workDur}/${breakDur}`, completed, timestamp:ts.toISOString(), workEndTs:new Date(ts.getTime()-breakDur*60*1000).toISOString(), recommendationSource: Math.random()>0.5?'ai':'rule', recId: Math.random()>0.7?`rec_${Math.random().toString(36).substr(2,9)}`:null });
+    }
+  }
+  const todosByDate={};
+  for(let day=0; day<7; day++){
+    const date=new Date(now-(6-day)*24*60*60*1000); date.setHours(0,0,0,0);
+    const key=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    const count=Math.floor(Math.random()*6)+5; const templates=['이메일 확인하기','회의 준비','보고서 작성','코드 리뷰','디자인 피드백','문서 정리','테스트 코드 작성','버그 수정','기획서 검토','데이터 분석','프로젝트 미팅','운동하기','독서','명상','산책'];
+    const todos=[]; for(let i=0;i<count;i++){ const createdAt=date.getTime()+Math.random()*24*60*60*1000; const completed=Math.random()<0.65; todos.push({ id:createdAt+i, text:templates[Math.floor(Math.random()*templates.length)] + (i>0?` ${i+1}`:''), completed, createdAt, updatedAt: createdAt+(completed? 3600000:0), completedAt: completed? createdAt + 3600000*Math.random()*8 : null }); }
+    todosByDate[key]=todos;
+  }
+  const userProfile={ onboardingCompleted:true, onboardingDate: now-30*24*60*60*1000, workPatterns:['coding','writing'], healthConcerns:['eyeStrain','stress'], preferredBreakTypes:['eyeExercise','breathing'], routine:{type:'pomodoro', workDuration:25, breakDuration:5}, schedule:{ startTime:'09:00', endTime:'18:00', includeWeekends:false } };
+  await chrome.storage.local.set({ breakHistory, todosByDate, userProfile });
+}
+
+async function exportTestData(){
+  const data=await chrome.storage.local.get(null); const json=JSON.stringify(data,null,2); const blob=new Blob([json],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`breet_test_data_${Date.now()}.json`; a.click(); URL.revokeObjectURL(url);
+}
+async function importTestData(){ const input=document.createElement('input'); input.type='file'; input.accept='.json'; input.onchange= async (e)=>{ const f=e.target.files[0]; if(!f) return; const text=await f.text(); const data=JSON.parse(text); await chrome.storage.local.set(data); location.reload(); }; input.click(); }
+
+async function generatePerfectUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const sessions=8; for(let s=0; s<sessions; s++){ const hour=9+s; const ts=new Date(date); ts.setHours(hour,0,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:['eyeExercise','stretching','breathing'][s%3], duration:5, workDuration:25, completed: Math.random()<0.95, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
+async function generateBeginnerUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const sessions=Math.floor(Math.random()*3)+2; for(let s=0;s<sessions;s++){ const hour=9+Math.floor(Math.random()*8); const ts=new Date(date); ts.setHours(hour,0,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:'eyeExercise', duration:5, workDuration:25, completed: Math.random()<0.35, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
+async function generateImprovingUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const rate=0.4 + (day/30)*0.5; const sessions=6; for(let s=0; s<sessions; s++){ const hour=9+s; const ts=new Date(date); ts.setHours(hour,0,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:['eyeExercise','stretching','breathing'][s%3], duration:5, workDuration:25, completed: Math.random()<rate, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
+async function generateMondayUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const isMon=date.getDay()===1; const sessions=isMon?10:2; const rate=isMon?0.9:0.3; for(let s=0;s<sessions;s++){ const hour=9+Math.floor(Math.random()*8); const ts=new Date(date); ts.setHours(hour,s*5,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:['eyeExercise','stretching'][s%2], duration:5, workDuration:25, completed: Math.random()<rate, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
