@@ -47,8 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       selectedMode = btn.dataset.mode;
       setActiveModeButton(selectedMode);
       setControlsEnabled(true);
-      // Activate timer + recommendation sections on first preset click
-      const ts = document.getElementById('timerSection'); if (ts) ts.classList.remove('hidden');
+      // Activate timer controls + recommendation sections on first preset click
+      const tc = document.getElementById('timerControls'); if (tc) tc.classList.remove('hidden');
       const bs = document.getElementById('breakSelectionCard'); if (bs) bs.classList.remove('hidden');
       // (reverted) timer is always visible; no gating by AI selection
       // 타이머 모드 클릭 시 즉시 인라인 카드로 휴식 추천 표시
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // 이전 세션 상태 초기화
     allBreakCandidates = [];
-    const ts = document.getElementById('timerSection'); if (ts) ts.classList.remove('hidden');
+    const tc = document.getElementById('timerControls'); if (tc) tc.classList.remove('hidden');
     const bs = document.getElementById('breakSelectionCard'); if (bs) bs.classList.remove('hidden');
     currentBreakPage = 0;
     selectedBreakIndex = 0;

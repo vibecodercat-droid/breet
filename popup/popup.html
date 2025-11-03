@@ -19,7 +19,7 @@
         </div>
       </header>
 
-      <section id="timerSection" class="bg-white rounded-lg shadow-sm p-3 space-y-2 hidden">
+      <section id="timerSection" class="bg-white rounded-lg shadow-sm p-3 space-y-2">
         <div>
           <h2 class="text-base font-semibold">집중 타이머</h2>
           <div id="timerDescription" class="text-xs text-gray-600 mt-1">쉬면서 일해야 건강하고 행복 ☕</div>
@@ -29,7 +29,8 @@
           <button data-mode="long" class="mode-btn px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">50/10</button>
           <button data-mode="short" class="mode-btn px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">15/3</button>
         </div>
-        <div class="flex items-center justify-between">
+        <!-- 타이머 컨트롤: 프리셋 선택 전에는 숨김 -->
+        <div id="timerControls" class="flex items-center justify-between hidden">
           <div>
             <div id="countdown" class="text-2xl font-semibold">--:--</div>
             <div id="timerSubtext" class="text-xs text-gray-500 mt-0.5"></div>
