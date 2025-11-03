@@ -355,8 +355,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshBtn = document.getElementById('refreshAnalysis');
   if (refreshBtn) refreshBtn.addEventListener('click', generateAIAnalysis);
 
-  // 데모 데이터 적용(비어있을 때만)
-  ensureDemoDataThenRender();
 });
 
 // ----------- AI 분석 및 추가 시각화 -----------
@@ -442,51 +440,4 @@ async function renderStreak(){
   const curEl=document.getElementById('currentStreak'); const longEl=document.getElementById('longestStreak'); if(curEl) curEl.textContent=current; if(longEl) longEl.textContent=longest;
 }
 
-// 비어있을 경우 데모 데이터 자동 생성 후 렌더
-async function ensureDemoDataThenRender(){
-  const { breakHistory=[], todosByDate={} } = await chrome.storage.local.get(['breakHistory','todosByDate']);
-  const todoCount = Object.values(todosByDate||{}).reduce((acc,arr)=>acc+(Array.isArray(arr)?arr.length:0),0);
-  if ((breakHistory?.length||0) === 0 && todoCount === 0) {
-    await generateTestData();
-    await refreshAllStats();
-  }
-}
 
-// ------------------ 🧪 테스트 데이터 생성기 ------------------
-async function generateTestData(){
-  const now=Date.now(); const types=['eyeExercise','stretching','breathing','hydration','movement'];
-  const typeNames={ eyeExercise:'눈 운동 20-20-20', stretching:'목 스트레칭', breathing:'박스 호흡', hydration:'물 마시기', movement:'제자리 걷기' };
-  const breakHistory=[];
-  for(let day=0; day<30; day++){
-    const date=new Date(now-(29-day)*24*60*60*1000); const isWeekend=[0,6].includes(date.getDay());
-    const sessions=isWeekend? (Math.floor(Math.random()*3)+1) : (Math.floor(Math.random()*6)+3);
-    for(let s=0; s<sessions; s++){
-      const hour=9+Math.floor(Math.random()*9); const minute=Math.floor(Math.random()*60);
-      const ts=new Date(date); ts.setHours(hour,minute,0,0);
-      const recentBonus=(day/30)*0.2; const base=0.6+recentBonus; const completed=Math.random()<base;
-      const type=types[Math.floor(Math.random()*types.length)]; const workDur=[25,50,15,1][Math.floor(Math.random()*4)];
-      const breakDur= workDur===25?5: workDur===50?10: workDur===15?3:1;
-      breakHistory.push({ id:ts.getTime()+s, breakId:`${type}_${s}`, breakType:type, breakName:`${breakDur}분 ${typeNames[type]}`, duration:breakDur, workDuration:workDur, label:`${workDur}/${breakDur}`, completed, timestamp:ts.toISOString(), workEndTs:new Date(ts.getTime()-breakDur*60*1000).toISOString(), recommendationSource: Math.random()>0.5?'ai':'rule', recId: Math.random()>0.7?`rec_${Math.random().toString(36).substr(2,9)}`:null });
-    }
-  }
-  const todosByDate={};
-  for(let day=0; day<7; day++){
-    const date=new Date(now-(6-day)*24*60*60*1000); date.setHours(0,0,0,0);
-    const key=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-    const count=Math.floor(Math.random()*6)+5; const templates=['이메일 확인하기','회의 준비','보고서 작성','코드 리뷰','디자인 피드백','문서 정리','테스트 코드 작성','버그 수정','기획서 검토','데이터 분석','프로젝트 미팅','운동하기','독서','명상','산책'];
-    const todos=[]; for(let i=0;i<count;i++){ const createdAt=date.getTime()+Math.random()*24*60*60*1000; const completed=Math.random()<0.65; todos.push({ id:createdAt+i, text:templates[Math.floor(Math.random()*templates.length)] + (i>0?` ${i+1}`:''), completed, createdAt, updatedAt: createdAt+(completed? 3600000:0), completedAt: completed? createdAt + 3600000*Math.random()*8 : null }); }
-    todosByDate[key]=todos;
-  }
-  const userProfile={ onboardingCompleted:true, onboardingDate: now-30*24*60*60*1000, workPatterns:['coding','writing'], healthConcerns:['eyeStrain','stress'], preferredBreakTypes:['eyeExercise','breathing'], routine:{type:'pomodoro', workDuration:25, breakDuration:5}, schedule:{ startTime:'09:00', endTime:'18:00', includeWeekends:false } };
-  await chrome.storage.local.set({ breakHistory, todosByDate, userProfile });
-}
-
-async function exportTestData(){
-  const data=await chrome.storage.local.get(null); const json=JSON.stringify(data,null,2); const blob=new Blob([json],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`breet_test_data_${Date.now()}.json`; a.click(); URL.revokeObjectURL(url);
-}
-async function importTestData(refreshAfter=false){ const input=document.createElement('input'); input.type='file'; input.accept='.json'; input.onchange= async (e)=>{ const f=e.target.files[0]; if(!f) return; const text=await f.text(); const data=JSON.parse(text); await chrome.storage.local.set(data); if(refreshAfter){ await refreshAllStats(); alert('데이터 가져오기 완료!'); } }; input.click(); }
-
-async function generatePerfectUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const sessions=8; for(let s=0; s<sessions; s++){ const hour=9+s; const ts=new Date(date); ts.setHours(hour,0,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:['eyeExercise','stretching','breathing'][s%3], duration:5, workDuration:25, completed: Math.random()<0.95, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
-async function generateBeginnerUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const sessions=Math.floor(Math.random()*3)+2; for(let s=0;s<sessions;s++){ const hour=9+Math.floor(Math.random()*8); const ts=new Date(date); ts.setHours(hour,0,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:'eyeExercise', duration:5, workDuration:25, completed: Math.random()<0.35, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
-async function generateImprovingUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const rate=0.4 + (day/30)*0.5; const sessions=6; for(let s=0; s<sessions; s++){ const hour=9+s; const ts=new Date(date); ts.setHours(hour,0,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:['eyeExercise','stretching','breathing'][s%3], duration:5, workDuration:25, completed: Math.random()<rate, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
-async function generateMondayUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const isMon=date.getDay()===1; const sessions=isMon?10:2; const rate=isMon?0.9:0.3; for(let s=0;s<sessions;s++){ const hour=9+Math.floor(Math.random()*8); const ts=new Date(date); ts.setHours(hour,s*5,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:['eyeExercise','stretching'][s%2], duration:5, workDuration:25, completed: Math.random()<rate, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
