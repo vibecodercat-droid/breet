@@ -395,36 +395,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshBtn = document.getElementById('refreshAnalysis');
   if (refreshBtn) refreshBtn.addEventListener('click', generateAIAnalysis);
 
-  // 🧪 테스트 데이터 버튼 바인딩
-  const genBtn = document.getElementById('generateTestData');
-  const clrBtn = document.getElementById('clearTestData');
-  const expBtn = document.getElementById('exportTestData');
-  const impBtn = document.getElementById('importTestData');
-  const scPerfect = document.getElementById('scenarioPerfect');
-  const scBeginner = document.getElementById('scenarioBeginner');
-  const scImproving = document.getElementById('scenarioImproving');
-  const scMonday = document.getElementById('scenarioMonday');
-  if (genBtn) genBtn.addEventListener('click', async ()=>{
-    if(!confirm('테스트 데이터를 생성하시겠습니까? 기존 데이터가 덮어씌워집니다.')) return;
-    genBtn.textContent='생성 중...'; genBtn.disabled=true;
-    await generateTestData();
-    // 즉시 UI 갱신
-    await refreshAllStats();
-    genBtn.textContent='테스트 데이터 생성'; genBtn.disabled=false;
-    alert('테스트 데이터 생성 완료!');
-  });
-  if (clrBtn) clrBtn.addEventListener('click', async ()=>{
-    if(!confirm('모든 데이터를 삭제하시겠습니까?')) return;
-    await chrome.storage.local.clear();
-    await refreshAllStats();
-    alert('데이터 초기화 완료!');
-  });
-  if (expBtn) expBtn.addEventListener('click', exportTestData);
-  if (impBtn) impBtn.addEventListener('click', async ()=>{ await importTestData(true); });
-  if (scPerfect) scPerfect.addEventListener('click', async ()=>{ await generatePerfectUserData(); await refreshAllStats(); alert('완벽 시나리오 생성!'); });
-  if (scBeginner) scBeginner.addEventListener('click', async ()=>{ await generateBeginnerUserData(); await refreshAllStats(); alert('초보 시나리오 생성!'); });
-  if (scImproving) scImproving.addEventListener('click', async ()=>{ await generateImprovingUserData(); await refreshAllStats(); alert('개선 시나리오 생성!'); });
-  if (scMonday) scMonday.addEventListener('click', async ()=>{ await generateMondayUserData(); await refreshAllStats(); alert('월요일 패턴 시나리오 생성!'); });
+  // 데모 데이터 적용(비어있을 때만)
+  ensureDemoDataThenRender();
 });
 
 // ----------- AI 분석 및 추가 시각화 -----------
@@ -508,6 +480,16 @@ async function renderStreak(){
   let current=0; let d=new Date(); d.setHours(0,0,0,0); while(set.has(localDateKey(d.getTime()))){ current++; d.setDate(d.getDate()-1); }
   const sorted=[...set].sort(); let longest=0, tmp=0; for(let i=0;i<sorted.length;i++){ if(i===0){ tmp=1; } else { const diff=(parseLocalDateKey(sorted[i])-parseLocalDateKey(sorted[i-1]))/(24*60*60*1000); if(diff===1) tmp++; else { longest=Math.max(longest,tmp); tmp=1; } } } longest=Math.max(longest,tmp);
   const curEl=document.getElementById('currentStreak'); const longEl=document.getElementById('longestStreak'); if(curEl) curEl.textContent=current; if(longEl) longEl.textContent=longest;
+}
+
+// 비어있을 경우 데모 데이터 자동 생성 후 렌더
+async function ensureDemoDataThenRender(){
+  const { breakHistory=[], todosByDate={} } = await chrome.storage.local.get(['breakHistory','todosByDate']);
+  const todoCount = Object.values(todosByDate||{}).reduce((acc,arr)=>acc+(Array.isArray(arr)?arr.length:0),0);
+  if ((breakHistory?.length||0) === 0 && todoCount === 0) {
+    await generateTestData();
+    await refreshAllStats();
+  }
 }
 
 // ------------------ 🧪 테스트 데이터 생성기 ------------------
