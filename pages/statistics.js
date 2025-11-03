@@ -167,102 +167,42 @@ async function renderWeekly() {
     w.total ? Math.round((w.completed / w.total) * 100) : 0
   );
   
-  const canvas = document.getElementById('weeklyChart');
-  if (!canvas) return;
-  
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  
-  // 토글 상태 읽기
+  const container = document.getElementById('weeklyChart');
+  if (!container || !window.echarts) return;
   const showSession = (document.getElementById('toggleSession')?.checked) !== false;
   const showTodo = (document.getElementById('toggleTodo')?.checked) !== false;
 
-  // 기존 차트 업데이트 또는 새로 생성 (방어적 검사)
-  if (window.weeklyChartInstance) {
-    const inst = window.weeklyChartInstance;
-    const canUpdate = inst && inst.data && Array.isArray(inst.data.datasets) && inst.data.datasets.length >= 2;
-    if (canUpdate) {
-      inst.data.datasets[0].data = sessionData;
-      inst.data.datasets[1].data = todoData;
-      inst.data.datasets[0].hidden = !showSession;
-      inst.data.datasets[1].hidden = !showTodo;
-      inst.update('none');
-      return;
-    } else {
-      try { inst.destroy(); } catch (_) {}
-      window.weeklyChartInstance = null;
-    }
-  }
-  
-  window.weeklyChartInstance = new window.Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['일', '월', '화', '수', '목', '금', '토'],
-      datasets: [
-        {
-          label: '세션 완료율',
-          data: sessionData,
-          backgroundColor: 'rgba(59, 130, 246, 0.6)',
-          borderColor: 'rgba(59, 130, 246, 1)',
-          borderWidth: 2,
-          hidden: !showSession
-        },
-        {
-          label: '투두 완료율',
-          data: todoData,
-          backgroundColor: 'rgba(34, 197, 94, 0.6)',
-          borderColor: 'rgba(34, 197, 94, 1)',
-          borderWidth: 2,
-          hidden: !showTodo
-        }
-      ]
+  const option = {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: {
+      data: ['세션 완료율', '투두 완료율'],
+      selected: { '세션 완료율': showSession, '투두 완료율': showTodo }
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          ticks: {
-            font: {
-              size: 12,
-              weight: 'bold'
-            },
-            color: '#374151'
-          },
-          grid: {
-            display: false
-          }
-        },
-        y: {
-          beginAtZero: true,
-          max: 100,
-          ticks: {
-            font: {
-              size: 11
-            },
-            color: '#6B7280',
-            callback: (value) => `${value}%`
-          },
-          grid: {
-            color: '#E5E7EB'
-          }
-        }
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top',
-          labels: {
-            font: {
-              size: 12
-            },
-            usePointStyle: true,
-            padding: 15
-          }
-        }
-      }
-    }
-  });
+    grid: { left: 40, right: 20, top: 30, bottom: 30 },
+    xAxis: {
+      type: 'category',
+      data: ['일','월','화','수','목','금','토'],
+      axisLabel: { color: '#374151' },
+      axisTick: { alignWithLabel: true },
+      axisLine: { lineStyle: { color: '#E5E7EB' } }
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { formatter: '{value}%', color: '#6B7280' },
+      splitLine: { lineStyle: { color: '#E5E7EB' } }
+    },
+    series: [
+      { name: '세션 완료율', type: 'bar', data: sessionData, itemStyle: { color: 'rgba(59,130,246,0.8)' } },
+      { name: '투두 완료율', type: 'bar', data: todoData, itemStyle: { color: 'rgba(34,197,94,0.8)' } }
+    ]
+  };
+
+  if (!window.weeklyEchartInstance) {
+    window.weeklyEchartInstance = echarts.init(container);
+  }
+  window.weeklyEchartInstance.setOption(option, true);
 }
 
 /**
