@@ -5,6 +5,9 @@ import { isSameLocalDay, localDateKey, parseLocalDateKey, startOfLocalDay } from
 // 선택된 날짜 상태
 let selectedDate = new Date();
 selectedDate.setHours(0, 0, 0, 0);
+// 호환성: 과거 코드에서 참조하던 전역(안쓰이더라도 정의해 에러 방지)
+var periodMode = 'week';
+var monthOffset = 0;
 // 주 네비게이션(주간 완료율/히트맵)
 let weekOffset = 0;
 // 브레이크 타입 분포 전용 기간/네비게이션 상태
