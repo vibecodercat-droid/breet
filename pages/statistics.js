@@ -482,27 +482,13 @@ async function renderTrendChart(){
   const store = await chrome.storage.local.get('breakHistory');
   const breakHistory = Array.isArray(store.breakHistory) ? store.breakHistory : [];
   var labels = [], rates = [];
-  if (periodMode==='week') {
-    var daysArr = [];
-    for (var i = 0; i < 30; i++) { var d = new Date(); d.setDate(d.getDate() - (29 - i)); d.setHours(0,0,0,0); daysArr.push(d); }
-    for (var j = 0; j < daysArr.length; j++) {
-      var dayDate = daysArr[j]; var total=0, comp=0;
-      for (var k = 0; k < breakHistory.length; k++) { var b = breakHistory[k]; var ts = Date.parse(b.timestamp||0); if (isSameLocalDay(ts, dayDate.getTime())) { total++; if (b.completed) comp++; } }
-      rates.push(total ? Math.round((comp/total)*100) : 0);
-      labels.push((dayDate.getMonth()+1) + '/' + dayDate.getDate());
-    }
-  } else {
-    var now = new Date(); var base = new Date(now.getFullYear(), now.getMonth()+monthOffset, 1);
-    var mStart = new Date(base.getFullYear(), base.getMonth(), 1);
-    var mEnd = new Date(base.getFullYear(), base.getMonth()+1, 0);
-    var startTs = mStart.getTime(); var endTs = new Date(mEnd.getFullYear(), mEnd.getMonth(), mEnd.getDate(), 23,59,59,999).getTime();
-    for (var d=1; d<=mEnd.getDate(); d++) {
-      var day = new Date(mStart.getFullYear(), mStart.getMonth(), d);
-      var total=0, comp=0; var dayStart=day.getTime(); var dayEnd=dayStart+24*60*60*1000-1;
-      for (var k=0;k<breakHistory.length;k++){ var b=breakHistory[k]; var ts=Date.parse(b.timestamp||0); if (ts>=dayStart && ts<=dayEnd && ts>=startTs && ts<=endTs){ total++; if (b.completed) comp++; } }
-      rates.push(total? Math.round((comp/total)*100):0); labels.push(String(d));
-    }
-    var trendInfo = document.getElementById('trendInfo'); if(trendInfo) trendInfo.textContent = `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`;
+  var daysArr = [];
+  for (var i = 0; i < 30; i++) { var d = new Date(); d.setDate(d.getDate() - (29 - i)); d.setHours(0,0,0,0); daysArr.push(d); }
+  for (var j = 0; j < daysArr.length; j++) {
+    var dayDate = daysArr[j]; var total=0, comp=0;
+    for (var k = 0; k < breakHistory.length; k++) { var b = breakHistory[k]; var ts = Date.parse(b.timestamp||0); if (isSameLocalDay(ts, dayDate.getTime())) { total++; if (b.completed) comp++; } }
+    rates.push(total ? Math.round((comp/total)*100) : 0);
+    labels.push((dayDate.getMonth()+1) + '/' + dayDate.getDate());
   }
   var canvas = document.getElementById('trendChart');
   if (!canvas) return;
