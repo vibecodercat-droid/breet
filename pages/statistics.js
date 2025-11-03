@@ -288,14 +288,12 @@ function setupRealtimeUpdates() {
       renderTrendChart();
       renderHourlyHeatmap();
       renderStreak();
-      generateAIAnalysis();
     }
     
     if (changes.todosByDate || changes.todos) {
       setTimeout(() => {
         refreshTodoStats();
         renderWeekly();
-        generateAIAnalysis();
       }, 100);
     }
   });
@@ -325,8 +323,7 @@ async function refreshAllStats() {
     renderTypeDistribution(),
     renderTrendChart(),
     renderHourlyHeatmap(),
-    renderStreak(),
-    generateAIAnalysis()
+    renderStreak()
   ]);
 }
 
@@ -356,15 +353,11 @@ document.addEventListener('DOMContentLoaded', () => {
   
   refreshAllStats();
   setupRealtimeUpdates();
-  // AI 분석 새로고침 버튼
-  const refreshBtn = document.getElementById('refreshAnalysis');
-  if (refreshBtn) refreshBtn.addEventListener('click', generateAIAnalysis);
-
 });
 
-// ----------- AI 분석 및 추가 시각화 -----------
+// ----------- 추가 시각화 -----------
 
-async function collectAnalysisData() {
+/* async function collectAnalysisData() {
   const { breakHistory = [], todosByDate = {} } = await chrome.storage.local.get(['breakHistory','todosByDate']);
   const now = Date.now();
   const weekAgo = now - 7*24*60*60*1000;
@@ -382,9 +375,9 @@ async function collectAnalysisData() {
     lastWeek:{ total:lastWeek.length, completed:lastWeek.filter(b=>b.completed).length, rate:rate(lastWeek) },
     weekdayStats, typeDistribution, todoCounts, trend: rate(thisWeek)-rate(lastWeek)
   };
-}
+} */
 
-function generateRuleBasedAnalysis(data){
+/* function generateRuleBasedAnalysis(data){
   const thisRate = Math.round((data.thisWeek.rate||0)*100);
   const trend = Math.round((data.trend||0)*100);
   let weeklySummary = thisRate>=80? `훌륭해요! 이번 주 ${thisRate}% 완료 🎉` : thisRate>=60? `좋아요! 이번 주 ${thisRate}% 완료 👍` : thisRate>=40? `꾸준히 가는 중, ${thisRate}% 완료 💪` : `이번 주 다시 시작해봐요 ${thisRate}% 완료 🌱`;
@@ -395,9 +388,9 @@ function generateRuleBasedAnalysis(data){
   const types = { eyeExercise:'눈 운동', stretching:'스트레칭', breathing:'호흡', hydration:'수분 섭취', movement:'움직임' };
   const least = Object.keys(types).find(t=>!data.typeDistribution[t]); if(least) suggestions.push(`${types[least]}을 더 자주 시도`);
   return { weeklySummary, pattern, suggestions: suggestions.slice(0,3) };
-}
+} */
 
-async function generateAIAnalysis(){
+/* async function generateAIAnalysis(){
   const loading=document.getElementById('analysisLoading'); const weekly=document.querySelector('#weeklyInsight p'); const pattern=document.querySelector('#patternInsight p'); const sug=document.querySelector('#suggestionInsight ul');
   if(loading) loading.classList.remove('hidden');
   try{
@@ -408,7 +401,7 @@ async function generateAIAnalysis(){
     if(sug){ sug.innerHTML=''; out.suggestions.forEach(t=>{ const li=document.createElement('li'); li.textContent=t; sug.appendChild(li); }); }
   }catch(e){ console.error('[AI Analysis] error', e); }
   finally{ if(loading) loading.classList.add('hidden'); }
-}
+} */
 
 async function renderTypeDistribution(){
   const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
