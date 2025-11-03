@@ -321,7 +321,6 @@ function setupRealtimeUpdates() {
       renderWeekly();
       renderAttendanceCalendar();
       renderTypeDistribution();
-      renderTrendChart();
       renderHourlyHeatmap();
       renderStreak();
     }
@@ -357,7 +356,6 @@ async function refreshAllStats() {
     renderWeekly(),
     renderAttendanceCalendar(),
     renderTypeDistribution(),
-    renderTrendChart(),
     renderHourlyHeatmap(),
     renderStreak()
   ]);
