@@ -11,6 +11,10 @@ let weekOffset = 0;
 let typeMode = 'week'; // 'week' | 'month'
 let typeWeekOffset = 0;
 let typeMonthOffset = 0;
+// 시간대별 활동 전용 기간/네비게이션 상태
+let heatMode = 'week'; // 'week' | 'month'
+let heatWeekOffset = 0;
+let heatMonthOffset = 0;
 
 /**
  * 선택된 날짜 표시
@@ -374,11 +378,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const nextWeekBtn = document.getElementById('nextWeek');
   const prevWeekHeat = document.getElementById('prevWeekHeat');
   const nextWeekHeat = document.getElementById('nextWeekHeat');
-  function moveWeek(delta){ weekOffset = Math.min(0, weekOffset + delta); renderWeekly(); renderHourlyHeatmap(); }
+  function moveWeek(delta){ weekOffset = Math.min(0, weekOffset + delta); renderWeekly(); }
   if (prevWeekBtn) prevWeekBtn.addEventListener('click', ()=>moveWeek(-1));
   if (nextWeekBtn) nextWeekBtn.addEventListener('click', ()=>moveWeek(1));
-  if (prevWeekHeat) prevWeekHeat.addEventListener('click', ()=>moveWeek(-1));
-  if (nextWeekHeat) nextWeekHeat.addEventListener('click', ()=>moveWeek(1));
+  // 시간대별 활동 네비게이션 (주/월 독립)
+  function moveHeat(delta){ if(heatMode==='week'){ heatWeekOffset=Math.min(0, heatWeekOffset+delta);} else { heatMonthOffset=Math.min(0, heatMonthOffset+delta);} renderHourlyHeatmap(); }
+  if (prevWeekHeat) prevWeekHeat.addEventListener('click', ()=>moveHeat(-1));
+  if (nextWeekHeat) nextWeekHeat.addEventListener('click', ()=>moveHeat(1));
 
   // 타입 분포 전용 토글/네비게이션
   function setTypeMode(mode){ typeMode = mode; updateTypeButtons(); renderTypeDistribution(); }
@@ -393,6 +399,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if(prevType) prevType.addEventListener('click', ()=>moveType(-1));
   if(nextType) nextType.addEventListener('click', ()=>moveType(1));
   updateTypeButtons();
+  // 시간대별 활동 모드 토글
+  function setHeatMode(mode){ heatMode = mode; updateHeatButtons(); renderHourlyHeatmap(); }
+  function updateHeatButtons(){
+    const hw=document.getElementById('heatModeWeek'); const hm=document.getElementById('heatModeMonth');
+    if (hw && hm){ if (heatMode==='week'){ hw.classList.add('bg-white'); hm.classList.remove('bg-white'); } else { hm.classList.add('bg-white'); hw.classList.remove('bg-white'); } }
+  }
+  const heatWeekBtn=document.getElementById('heatModeWeek'); if(heatWeekBtn) heatWeekBtn.addEventListener('click', ()=>setHeatMode('week'));
+  const heatMonthBtn=document.getElementById('heatModeMonth'); if(heatMonthBtn) heatMonthBtn.addEventListener('click', ()=>setHeatMode('month'));
+  updateHeatButtons();
   
   refreshAllStats();
   setupRealtimeUpdates();
@@ -466,16 +481,28 @@ async function renderTypeDistribution(){
 
 async function renderHourlyHeatmap(){
   const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
-  const info = getWeekInfo(new Date(), weekOffset);
-  const startTs = info.start.getTime();
-  const endTs = new Date(info.end.getFullYear(), info.end.getMonth(), info.end.getDate(), 23,59,59,999).getTime();
+  let startTs, endTs, labelText;
+  if (heatMode==='week') {
+    const info = getWeekInfo(new Date(), heatWeekOffset);
+    startTs = info.start.getTime();
+    endTs = new Date(info.end.getFullYear(), info.end.getMonth(), info.end.getDate(), 23,59,59,999).getTime();
+    labelText = info.text;
+  } else {
+    const now = new Date();
+    const base = new Date(now.getFullYear(), now.getMonth()+heatMonthOffset, 1);
+    const mStart = new Date(base.getFullYear(), base.getMonth(), 1);
+    const mEnd = new Date(base.getFullYear(), base.getMonth()+1, 0);
+    startTs = mStart.getTime();
+    endTs = new Date(mEnd.getFullYear(), mEnd.getMonth(), mEnd.getDate(), 23,59,59,999).getTime();
+    labelText = `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`;
+  }
   const grid=Array(7).fill(0).map(()=>Array(24).fill(0));
   breakHistory.filter(b=>b.completed).forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=startTs && ts<=endTs)) return; const d=new Date(ts); const idx=(d.getDay()===0)?6:(d.getDay()-1); grid[idx][d.getHours()]++; });
   const container=document.getElementById('hourlyHeatmap'); if(!container) return; const max=Math.max(0,...grid.flat());
   const days=['월','화','수','목','금','토','일']; let html='<div class="inline-flex flex-col gap-1">';
-  days.forEach((day,di)=>{ html+='<div class="flex gap-1">'; html+=`<div class="w-8 text-xs flex items-center justify-end pr-1">${day}</div>`; for(let h=0;h<24;h++){ const c=grid[di][h]; const t=max?c/max:0; const color=t===0?'#f3f4f6': t<0.33?'#dbeafe': t<0.66?'#93c5fd':'#3b82f6'; html+=`<div class="w-4 h-4 rounded-sm" style="background-color:${color}" title="${day} ${h}시: ${c}회"></div>`;} html+='</div>'; }); html+='</div>';
+  days.forEach((day,di)=>{ html+='<div class="flex gap-1">'; html+=`<div class="w-8 text-xs flex items-center justify-end pr-1">${day}</div>`; for(let h=0;h<24;h++){ const c=grid[di][h]; const t=max?c/max:0; const color=t===0?'#f3f4f6': t<0.33?'#dbeafe': t<0.66?'#93c5fd':'#3b82f6'; html+=`<div class="w-4 h-4 rounded-sm" style=\"background-color:${color}\" title=\"${day} ${h}시: ${c}회\"></div>`;} html+='</div>'; }); html+='</div>';
   container.innerHTML=html;
-  const weekInfoHeat = document.getElementById('weekInfoHeat'); if (weekInfoHeat) weekInfoHeat.textContent = info.text;
+  const weekInfoHeat = document.getElementById('weekInfoHeat'); if (weekInfoHeat) weekInfoHeat.textContent = labelText;
 }
 
 async function renderTrendChart(){
