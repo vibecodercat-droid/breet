@@ -263,67 +263,9 @@ async function renderDailyAffirmation() {
 async function renderTimerDescription() {
   const el = document.getElementById('timerDescription');
   if (!el) return;
-  const dk = dateKey();
-  const { timerDescription = null, userProfile = {} } = await chrome.storage.local.get(['timerDescription','userProfile']);
-  if (timerDescription && timerDescription.dateKey === dk && timerDescription.text) {
-    el.textContent = timerDescription.text;
-    return;
-  }
-  // try AI with timerDescription-specific constraints
-  let text = '';
-  try {
-    const { getApiBase } = await import('../lib/auth.js');
-    const apiBase = getApiBase();
-    const res = await fetch(`${apiBase}/api/ai/dailyQuote`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        context: { 
-          workPatterns: userProfile.workPatterns || [], 
-          healthConcerns: userProfile.healthConcerns || [] 
-        }, 
-        constraints: { 
-          minChars: 10, 
-          maxChars: 28, 
-          tone: 'warm', 
-          witty: true, 
-          suffixEmoji: true, 
-          seedPhrase: '쉬면서 일해야 건강하고 행복해요!' 
-        } 
-      }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      text = data?.text || '';
-    }
-  } catch (e) {
-    console.error('[Popup] Timer description generation error', e);
-  }
-  const FALLBACK = '쉬면서 일해야 건강하고 행복 ☕';
-  const MAX = 28, MIN = 10;
-  const ensureLen = (s) => {
-    const trimmed = (s || '').trim();
-    if (trimmed.length >= MIN && trimmed.length <= MAX) return trimmed;
-    return FALLBACK;
-  };
-  if (!text || typeof text !== 'string') {
-    text = FALLBACK;
-  } else {
-    text = ensureLen(text);
-    // 여러 문장 체크 (마침표가 2개 이상이면 첫 문장만)
-    const periodCount = (text.match(/\./g) || []).length;
-    if (periodCount > 1) {
-      const firstPeriod = text.indexOf('.');
-      if (firstPeriod > 0) {
-        text = text.slice(0, firstPeriod + 1);
-      }
-    }
-    // 이모지 확인 (맨 마지막에 이모지 추가)
-    if (!/\p{Emoji}/u.test(text)) {
-      text = text.trim() + ' ☕';
-    }
-  }
+  const text = '일하는 중간에 짧게 쉬면서 건강하고 오래 일해요💙';
   el.textContent = text;
+  const dk = dateKey();
   await chrome.storage.local.set({ timerDescription: { dateKey: dk, text } });
 }
 
