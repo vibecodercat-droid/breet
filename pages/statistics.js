@@ -407,18 +407,24 @@ document.addEventListener('DOMContentLoaded', () => {
   if (genBtn) genBtn.addEventListener('click', async ()=>{
     if(!confirm('테스트 데이터를 생성하시겠습니까? 기존 데이터가 덮어씌워집니다.')) return;
     genBtn.textContent='생성 중...'; genBtn.disabled=true;
-    await generateTestData(); alert('테스트 데이터 생성 완료!'); location.reload();
+    await generateTestData();
+    // 즉시 UI 갱신
+    await refreshAllStats();
+    genBtn.textContent='테스트 데이터 생성'; genBtn.disabled=false;
+    alert('테스트 데이터 생성 완료!');
   });
   if (clrBtn) clrBtn.addEventListener('click', async ()=>{
     if(!confirm('모든 데이터를 삭제하시겠습니까?')) return;
-    await chrome.storage.local.clear(); alert('데이터 초기화 완료!'); location.reload();
+    await chrome.storage.local.clear();
+    await refreshAllStats();
+    alert('데이터 초기화 완료!');
   });
   if (expBtn) expBtn.addEventListener('click', exportTestData);
-  if (impBtn) impBtn.addEventListener('click', importTestData);
-  if (scPerfect) scPerfect.addEventListener('click', async ()=>{ await generatePerfectUserData(); alert('완벽 시나리오 생성!'); location.reload(); });
-  if (scBeginner) scBeginner.addEventListener('click', async ()=>{ await generateBeginnerUserData(); alert('초보 시나리오 생성!'); location.reload(); });
-  if (scImproving) scImproving.addEventListener('click', async ()=>{ await generateImprovingUserData(); alert('개선 시나리오 생성!'); location.reload(); });
-  if (scMonday) scMonday.addEventListener('click', async ()=>{ await generateMondayUserData(); alert('월요일 패턴 시나리오 생성!'); location.reload(); });
+  if (impBtn) impBtn.addEventListener('click', async ()=>{ await importTestData(true); });
+  if (scPerfect) scPerfect.addEventListener('click', async ()=>{ await generatePerfectUserData(); await refreshAllStats(); alert('완벽 시나리오 생성!'); });
+  if (scBeginner) scBeginner.addEventListener('click', async ()=>{ await generateBeginnerUserData(); await refreshAllStats(); alert('초보 시나리오 생성!'); });
+  if (scImproving) scImproving.addEventListener('click', async ()=>{ await generateImprovingUserData(); await refreshAllStats(); alert('개선 시나리오 생성!'); });
+  if (scMonday) scMonday.addEventListener('click', async ()=>{ await generateMondayUserData(); await refreshAllStats(); alert('월요일 패턴 시나리오 생성!'); });
 });
 
 // ----------- AI 분석 및 추가 시각화 -----------
@@ -536,7 +542,7 @@ async function generateTestData(){
 async function exportTestData(){
   const data=await chrome.storage.local.get(null); const json=JSON.stringify(data,null,2); const blob=new Blob([json],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`breet_test_data_${Date.now()}.json`; a.click(); URL.revokeObjectURL(url);
 }
-async function importTestData(){ const input=document.createElement('input'); input.type='file'; input.accept='.json'; input.onchange= async (e)=>{ const f=e.target.files[0]; if(!f) return; const text=await f.text(); const data=JSON.parse(text); await chrome.storage.local.set(data); location.reload(); }; input.click(); }
+async function importTestData(refreshAfter=false){ const input=document.createElement('input'); input.type='file'; input.accept='.json'; input.onchange= async (e)=>{ const f=e.target.files[0]; if(!f) return; const text=await f.text(); const data=JSON.parse(text); await chrome.storage.local.set(data); if(refreshAfter){ await refreshAllStats(); alert('데이터 가져오기 완료!'); } }; input.click(); }
 
 async function generatePerfectUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const sessions=8; for(let s=0; s<sessions; s++){ const hour=9+s; const ts=new Date(date); ts.setHours(hour,0,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:['eyeExercise','stretching','breathing'][s%3], duration:5, workDuration:25, completed: Math.random()<0.95, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
 async function generateBeginnerUserData(){ const breakHistory=[]; const now=Date.now(); for(let day=0; day<30; day++){ const date=new Date(now-(29-day)*24*60*60*1000); const sessions=Math.floor(Math.random()*3)+2; for(let s=0;s<sessions;s++){ const hour=9+Math.floor(Math.random()*8); const ts=new Date(date); ts.setHours(hour,0,0,0); breakHistory.push({ id:ts.getTime()+s, breakType:'eyeExercise', duration:5, workDuration:25, completed: Math.random()<0.35, timestamp: ts.toISOString(), workEndTs: new Date(ts.getTime()-5*60*1000).toISOString() }); } } await chrome.storage.local.set({ breakHistory }); }
