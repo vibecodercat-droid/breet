@@ -198,13 +198,26 @@ async function renderWeekly() {
   }
   const canvas = document.getElementById('weeklyChartCanvas');
   const ctx = canvas.getContext('2d');
+  // 만약 이전에 ECharts 인스턴스가 있었다면 정리
+  if (window.weeklyEchartInstance && typeof window.weeklyEchartInstance.dispose === 'function') {
+    try { window.weeklyEchartInstance.dispose(); } catch(_) {}
+    window.weeklyEchartInstance = null;
+  }
+  // 기존 Chart.js 인스턴스가 정상일 경우 업데이트, 아니면 재생성
   if (window.weeklyChartInstance) {
-    window.weeklyChartInstance.data.datasets[0].data = sessionData;
-    window.weeklyChartInstance.data.datasets[1].data = todoData;
-    window.weeklyChartInstance.data.datasets[0].hidden = !showSession;
-    window.weeklyChartInstance.data.datasets[1].hidden = !showTodo;
-    window.weeklyChartInstance.update('none');
-    return;
+    const inst = window.weeklyChartInstance;
+    const canUpdate = inst && inst.data && Array.isArray(inst.data.datasets) && inst.data.datasets.length >= 2;
+    if (canUpdate) {
+      inst.data.datasets[0].data = sessionData;
+      inst.data.datasets[1].data = todoData;
+      inst.data.datasets[0].hidden = !showSession;
+      inst.data.datasets[1].hidden = !showTodo;
+      inst.update('none');
+      return;
+    } else {
+      try { inst.destroy(); } catch(_) {}
+      window.weeklyChartInstance = null;
+    }
   }
   window.weeklyChartInstance = new window.Chart(ctx, {
     type: 'bar',
