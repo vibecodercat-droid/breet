@@ -443,32 +443,23 @@ async function renderDaySummary() {
   const el = document.getElementById('daySummary'); if (!el) return;
   const dk = dateKey(currentDay);
   const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
-  const rows = breakHistory.filter(b => (new Date(b.timestamp)).toISOString().slice(0,10) === dk);
-  if (!rows.length) { el.textContent = '오늘 기록 없음'; return; }
-  const last = rows[rows.length - 1];
-  const label = (() => {
-    const w = last.workDuration, r = last.duration;
-    if (w===25 && r===5) return '25/5';
-    if (w===50 && r===10) return '50/10';
-    if (w===15 && r===3) return '15/3';
-    if (w===1 && r===1) return '1/1';
-    return `${w||'-'}/${r}`;
-  })();
-  const t = new Date(last.workEndTs || (new Date(last.timestamp).getTime() - (last.duration||0)*60000));
-  let h = t.getHours();
-  const mm = String(t.getMinutes()).padStart(2,'0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12; if (h === 0) h = 12; const hh12 = String(h).padStart(2,'0');
-  const action = last.breakName || last.breakType || '';
-  // 상단: "라벨 실행 · 브레이크명" (괄호 제거),
-  // 하단: 시간, 그리고 옅은 구분선
-  const topLine = `${label} 실행 · ${action}`.trim();
-  const timeLine = `${ampm} ${hh12}:${mm}`;
-  el.innerHTML = `
-    <div>${topLine}</div>
-    <div class="text-gray-600 mt-0.5">${timeLine}</div>
-    <div class="mt-2 border-t border-gray-200"></div>
-  `;
+  const rows = breakHistory
+    .filter((b) => { const ts = Date.parse(b.timestamp || 0); return dateKey(new Date(ts)) === dk; })
+    .filter((b) => b.completed);
+  if (!rows.length) { el.textContent = '오늘 완료된 세션 없음'; return; }
+  // 최근 순으로 정렬
+  rows.sort((a, b) => (Date.parse(b.timestamp || 0)) - (Date.parse(a.timestamp || 0)));
+  const blocks = rows.map((item) => {
+    const w = item.workDuration, r = item.duration;
+    const label = (w===25&&r===5) ? '25/5' : (w===50&&r===10) ? '50/10' : (w===15&&r===3) ? '15/3' : (w===1&&r===1) ? '1/1' : `${w||'-'}/${r}`;
+    const t = new Date(item.workEndTs || (Date.parse(item.timestamp||0) - (item.duration||0)*60000));
+    let h = t.getHours(); const mm = String(t.getMinutes()).padStart(2,'0'); const ampm = h>=12?'PM':'AM'; h = h%12; if (h===0) h=12; const hh12 = String(h).padStart(2,'0');
+    const action = item.breakName || item.breakType || '';
+    const topLine = `${label} 실행 · ${action}`.trim();
+    const timeLine = `${ampm} ${hh12}:${mm}`;
+    return `<div class="py-1"><div>${topLine}</div><div class="text-gray-600 mt-0.5">${timeLine}</div></div><div class="border-t border-gray-200"></div>`;
+  });
+  el.innerHTML = blocks.join('');
 }
 
 // 브레이크 선택 카드 관련 함수들
