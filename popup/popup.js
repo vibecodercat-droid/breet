@@ -18,9 +18,6 @@ let currentBreakSessionId = null;
 let breakSelectionPayload = null;
 let isLoadingBreaks = false;
 const maxBreakPages = 5;
-// Timer gating flags
-let hasModeSelected = false;
-let hasBreakSelected = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Onboarding gate: if not completed, redirect to onboarding page
@@ -50,10 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       selectedMode = btn.dataset.mode;
       setActiveModeButton(selectedMode);
       setControlsEnabled(true);
-      // show timer section when a preset is chosen
-      const ts = document.getElementById('timerSection'); if (ts) ts.classList.remove('hidden');
-      // require AI recommendation selection before enabling start
-      hasModeSelected = true; hasBreakSelected = false; setStartEnabled(false);
+      // (reverted) timer is always visible; no gating by AI selection
       // 타이머 모드 클릭 시 즉시 인라인 카드로 휴식 추천 표시
       const preset = MODE_PRESETS[selectedMode] || MODE_PRESETS.pomodoro;
       const payload = { mode: selectedMode, workMinutes: preset.work, breakMinutes: preset.rest };
@@ -105,9 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // 이전 세션 상태 초기화
     allBreakCandidates = [];
-    // show timer section for quick preset too
-    const ts = document.getElementById('timerSection'); if (ts) ts.classList.remove('hidden');
-    hasModeSelected = true; hasBreakSelected = false; setStartEnabled(false);
+    // (reverted) timer always visible
     currentBreakPage = 0;
     selectedBreakIndex = 0;
     currentBreakSessionId = null;
@@ -222,13 +214,8 @@ function setActiveModeButton(mode) {
 function setControlsEnabled(enabled) {
   const start = document.getElementById('startBtn');
   const stop = document.getElementById('stopBtn');
-  if (start) start.disabled = !enabled || !hasBreakSelected; // gate by break selection
-  if (stop) stop.disabled = !enabled;
-}
-
-function setStartEnabled(enabled){
-  const start = document.getElementById('startBtn');
   if (start) start.disabled = !enabled;
+  if (stop) stop.disabled = !enabled;
 }
 
 async function renderOnboardingSummary() {
@@ -327,8 +314,6 @@ async function onStart(override, modeLabel) {
 
 function onPause() {
   chrome.runtime.sendMessage({ type: 'breet:pauseTimer' });
-  // after pause, enable start button again for resume
-  setStartEnabled(true);
 }
 
 async function refreshCountdown() {
@@ -790,8 +775,6 @@ async function onBreakCandidateSelected() {
   // 선택된 브레이크 저장
   const pendingKey = currentBreakSessionId ? `pendingBreak_${currentBreakSessionId}` : 'pendingBreak';
   await chrome.storage.local.set({ [pendingKey]: selected, pendingBreak: selected });
-  // allow starting after a valid AI recommendation is chosen
-  hasBreakSelected = true; setStartEnabled(true);
   
   // 세션 상태 확인 (타이머 버튼 클릭 시에만 카드가 표시되므로 selecting 단계만 처리)
   const { sessionState } = await chrome.storage.local.get('sessionState');
