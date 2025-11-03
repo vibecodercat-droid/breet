@@ -168,41 +168,55 @@ async function renderWeekly() {
   );
   
   const container = document.getElementById('weeklyChart');
-  if (!container || !window.echarts) return;
+  if (!container) return;
   const showSession = (document.getElementById('toggleSession')?.checked) !== false;
   const showTodo = (document.getElementById('toggleTodo')?.checked) !== false;
 
-  const option = {
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: {
-      data: ['세션 완료율', '투두 완료율'],
-      selected: { '세션 완료율': showSession, '투두 완료율': showTodo }
-    },
-    grid: { left: 40, right: 20, top: 30, bottom: 30 },
-    xAxis: {
-      type: 'category',
-      data: ['일','월','화','수','목','금','토'],
-      axisLabel: { color: '#374151' },
-      axisTick: { alignWithLabel: true },
-      axisLine: { lineStyle: { color: '#E5E7EB' } }
-    },
-    yAxis: {
-      type: 'value',
-      min: 0,
-      max: 100,
-      axisLabel: { formatter: '{value}%', color: '#6B7280' },
-      splitLine: { lineStyle: { color: '#E5E7EB' } }
-    },
-    series: [
-      { name: '세션 완료율', type: 'bar', data: sessionData, itemStyle: { color: 'rgba(59,130,246,0.8)' } },
-      { name: '투두 완료율', type: 'bar', data: todoData, itemStyle: { color: 'rgba(34,197,94,0.8)' } }
-    ]
-  };
-
-  if (!window.weeklyEchartInstance) {
-    window.weeklyEchartInstance = echarts.init(container);
+  if (window.echarts) {
+    const option = {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { data: ['세션 완료율', '투두 완료율'], selected: { '세션 완료율': showSession, '투두 완료율': showTodo } },
+      grid: { left: 40, right: 20, top: 30, bottom: 30 },
+      xAxis: { type: 'category', data: ['일','월','화','수','목','금','토'], axisLabel: { color: '#374151' }, axisTick: { alignWithLabel: true }, axisLine: { lineStyle: { color: '#E5E7EB' } } },
+      yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%', color: '#6B7280' }, splitLine: { lineStyle: { color: '#E5E7EB' } } },
+      series: [
+        { name: '세션 완료율', type: 'bar', data: sessionData, itemStyle: { color: 'rgba(59,130,246,0.8)' } },
+        { name: '투두 완료율', type: 'bar', data: todoData, itemStyle: { color: 'rgba(34,197,94,0.8)' } }
+      ]
+    };
+    if (!window.weeklyEchartInstance) {
+      window.weeklyEchartInstance = echarts.init(container);
+    }
+    window.weeklyEchartInstance.setOption(option, true);
+    return;
   }
-  window.weeklyEchartInstance.setOption(option, true);
+
+  // Fallback: Chart.js (local vendor)
+  // ensure container contains a canvas for Chart.js
+  if (!container.querySelector('canvas')) {
+    container.innerHTML = '<canvas id="weeklyChartCanvas" height="250"></canvas>';
+  }
+  const canvas = document.getElementById('weeklyChartCanvas');
+  const ctx = canvas.getContext('2d');
+  if (window.weeklyChartInstance) {
+    window.weeklyChartInstance.data.datasets[0].data = sessionData;
+    window.weeklyChartInstance.data.datasets[1].data = todoData;
+    window.weeklyChartInstance.data.datasets[0].hidden = !showSession;
+    window.weeklyChartInstance.data.datasets[1].hidden = !showTodo;
+    window.weeklyChartInstance.update('none');
+    return;
+  }
+  window.weeklyChartInstance = new window.Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['일','월','화','수','목','금','토'],
+      datasets: [
+        { label: '세션 완료율', data: sessionData, backgroundColor: 'rgba(59, 130, 246, 0.6)', borderColor: 'rgba(59,130,246,1)', borderWidth: 2, hidden: !showSession },
+        { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2, hidden: !showTodo }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: (v)=> `${v}%` } } } }
+  });
 }
 
 /**

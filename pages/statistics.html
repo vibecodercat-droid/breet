@@ -71,7 +71,9 @@
         <button id="exportCsv" class="mt-2 px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">다운로드</button>
       </section>
     </main>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <!-- Local vendors to satisfy MV3 CSP ('self' only) -->
+    <script src="../vendor/echarts.min.js"></script>
+    <script src="../vendor/chart.min.js"></script>
     <script src="statistics.js" type="module"></script>
   </body>
 </html>
