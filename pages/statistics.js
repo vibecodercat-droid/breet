@@ -5,12 +5,12 @@ import { isSameLocalDay, localDateKey, parseLocalDateKey, startOfLocalDay } from
 // 선택된 날짜 상태
 let selectedDate = new Date();
 selectedDate.setHours(0, 0, 0, 0);
-// 기간/네비게이션 상태
-let periodMode = 'week'; // 'week' | 'month'
-// 주 네비게이션 상태 (0: 이번 주, -1: 지난 주 ...)
+// 주 네비게이션(주간 완료율/히트맵)
 let weekOffset = 0;
-// 월 네비게이션 상태 (0: 이번 달, -1: 지난 달 ...)
-let monthOffset = 0;
+// 브레이크 타입 분포 전용 기간/네비게이션 상태
+let typeMode = 'week'; // 'week' | 'month'
+let typeWeekOffset = 0;
+let typeMonthOffset = 0;
 
 /**
  * 선택된 날짜 표시
@@ -152,35 +152,23 @@ async function renderWeekly() {
     'todosByDate'
   ]);
   
-  // 기간 정보 계산 및 표시 (주간/월간)
+  // 기간 정보 계산 및 표시 (주간 고정)
   const weekInfo = getWeekInfo(new Date(), weekOffset);
-  const now = new Date();
-  const monthBase = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
-  const monthStart = new Date(monthBase.getFullYear(), monthBase.getMonth(), 1);
-  const monthEnd = new Date(monthBase.getFullYear(), monthBase.getMonth()+1, 0);
-  const startTs = (periodMode==='week' ? weekInfo.start : monthStart).getTime();
-  const endRef = (periodMode==='week' ? weekInfo.end : monthEnd);
-  const endTs = new Date(endRef.getFullYear(), endRef.getMonth(), endRef.getDate(), 23,59,59,999).getTime();
+  const startTs = weekInfo.start.getTime();
+  const endTs = new Date(weekInfo.end.getFullYear(), weekInfo.end.getMonth(), weekInfo.end.getDate(), 23,59,59,999).getTime();
   const weekInfoEl = document.getElementById('weekInfo');
   if (weekInfoEl) {
-    weekInfoEl.textContent = (periodMode==='week')
-      ? weekInfo.text
-      : `${monthStart.getFullYear()}년 ${monthStart.getMonth()+1}월 (${monthStart.getMonth()+1}/1 ~ ${monthEnd.getMonth()+1}/${monthEnd.getDate()})`;
+    weekInfoEl.textContent = weekInfo.text;
   }
   
-  // 세션 기준 통계 (주간: 월~일, 월간: 1..마지막일)
-  const bucketLen = (periodMode==='week') ? 7 : monthEnd.getDate();
+  // 세션 기준 통계 (주간: 월~일)
+  const bucketLen = 7;
   const sessionCounts = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
   for (const b of breakHistory) {
     const ts = Date.parse(b.timestamp || 0);
     if (!(ts >= startTs && ts <= endTs)) continue;
-    let idx;
-    if (periodMode==='week') {
-      const gd = new Date(ts).getDay();
-      idx = (gd === 0) ? 6 : (gd - 1);
-    } else {
-      idx = new Date(ts).getDate() - 1;
-    }
+    const gd = new Date(ts).getDay();
+    const idx = (gd === 0) ? 6 : (gd - 1);
     sessionCounts[idx].total += 1;
     if (b.completed) sessionCounts[idx].completed += 1;
   }
@@ -192,13 +180,8 @@ async function renderWeekly() {
     if (!Array.isArray(todos)) continue;
     const ts = parseLocalDateKey(dateKeyStr);
     if (!(ts >= startTs && ts <= endTs)) continue;
-    let idx;
-    if (periodMode==='week') {
-      const dayOfWeek = new Date(ts).getDay();
-      idx = (dayOfWeek === 0) ? 6 : (dayOfWeek - 1);
-    } else {
-      idx = new Date(ts).getDate() - 1;
-    }
+    const dayOfWeek = new Date(ts).getDay();
+    const idx = (dayOfWeek === 0) ? 6 : (dayOfWeek - 1);
     todos.forEach((todo) => {
       todoWeekly[idx].total += 1;
       if (todo.completed) todoWeekly[idx].completed += 1;
@@ -228,7 +211,7 @@ async function renderWeekly() {
   window.weeklyChartInstance = new window.Chart(ctx, {
     type: 'bar',
     data: {
-      labels: (periodMode==='week') ? ['월','화','수','목','금','토','일'] : Array.from({length: bucketLen}, (_,i)=> String(i+1)),
+      labels: ['월','화','수','목','금','토','일'],
       datasets: [
         { label: '세션 완료율', data: sessionData, backgroundColor: 'rgba(59, 130, 246, 0.6)', borderColor: 'rgba(59,130,246,1)', borderWidth: 2 },
         { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
@@ -391,45 +374,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const nextWeekBtn = document.getElementById('nextWeek');
   const prevWeekHeat = document.getElementById('prevWeekHeat');
   const nextWeekHeat = document.getElementById('nextWeekHeat');
-  function moveWeek(delta){
-    if (periodMode==='week') {
-      weekOffset = Math.min(0, weekOffset + delta);
-    } else {
-      monthOffset = Math.min(0, monthOffset + delta);
-    }
-    renderWeekly(); renderHourlyHeatmap(); renderTypeDistribution(); renderTrendChart();
-  }
+  function moveWeek(delta){ weekOffset = Math.min(0, weekOffset + delta); renderWeekly(); renderHourlyHeatmap(); }
   if (prevWeekBtn) prevWeekBtn.addEventListener('click', ()=>moveWeek(-1));
   if (nextWeekBtn) nextWeekBtn.addEventListener('click', ()=>moveWeek(1));
   if (prevWeekHeat) prevWeekHeat.addEventListener('click', ()=>moveWeek(-1));
   if (nextWeekHeat) nextWeekHeat.addEventListener('click', ()=>moveWeek(1));
 
-  // 주/월 모드 토글(모든 섹션 공통 적용)
-  function setMode(mode){
-    periodMode = mode;
-    // 버튼 스타일 토글
-    [['weeklyModeWeek','weeklyModeMonth'],['heatModeWeek','heatModeMonth'],['typeModeWeek','typeModeMonth'],['trendModeWeek','trendModeMonth']].forEach(([w,m])=>{
-      const wb=document.getElementById(w), mb=document.getElementById(m);
-      if (wb && mb){
-        if (mode==='week'){ wb.classList.add('bg-white'); mb.classList.remove('bg-white'); }
-        else { mb.classList.add('bg-white'); wb.classList.remove('bg-white'); }
-      }
-    });
-    renderWeekly(); renderHourlyHeatmap(); renderTypeDistribution(); renderTrendChart();
+  // 타입 분포 전용 토글/네비게이션
+  function setTypeMode(mode){ typeMode = mode; updateTypeButtons(); renderTypeDistribution(); }
+  function updateTypeButtons(){
+    const tw=document.getElementById('typeModeWeek'); const tm=document.getElementById('typeModeMonth');
+    if (tw && tm){ if (typeMode==='week'){ tw.classList.add('bg-white'); tm.classList.remove('bg-white'); } else { tm.classList.add('bg-white'); tw.classList.remove('bg-white'); } }
   }
-  const wmw=document.getElementById('weeklyModeWeek'); if(wmw) wmw.addEventListener('click', ()=>setMode('week'));
-  const wmm=document.getElementById('weeklyModeMonth'); if(wmm) wmm.addEventListener('click', ()=>setMode('month'));
-  const hmw=document.getElementById('heatModeWeek'); if(hmw) hmw.addEventListener('click', ()=>setMode('week'));
-  const hmm=document.getElementById('heatModeMonth'); if(hmm) hmm.addEventListener('click', ()=>setMode('month'));
-  const tmw=document.getElementById('typeModeWeek'); if(tmw) tmw.addEventListener('click', ()=>setMode('week'));
-  const tmm=document.getElementById('typeModeMonth'); if(tmm) tmm.addEventListener('click', ()=>setMode('month'));
-  const trmw=document.getElementById('trendModeWeek'); if(trmw) trmw.addEventListener('click', ()=>setMode('week'));
-  const trmm=document.getElementById('trendModeMonth'); if(trmm) trmm.addEventListener('click', ()=>setMode('month'));
-
-  // 트렌드 전용 네비(주/월 공통)
-  const prevTrend=document.getElementById('prevTrend'); const nextTrend=document.getElementById('nextTrend');
-  if (prevTrend) prevTrend.addEventListener('click', ()=>moveWeek(-1));
-  if (nextTrend) nextTrend.addEventListener('click', ()=>moveWeek(1));
+  const tmw=document.getElementById('typeModeWeek'); if(tmw) tmw.addEventListener('click', ()=>setTypeMode('week'));
+  const tmm=document.getElementById('typeModeMonth'); if(tmm) tmm.addEventListener('click', ()=>setTypeMode('month'));
+  const prevType=document.getElementById('prevType'); const nextType=document.getElementById('nextType');
+  function moveType(delta){ if(typeMode==='week'){ typeWeekOffset=Math.min(0, typeWeekOffset+delta);} else { typeMonthOffset=Math.min(0, typeMonthOffset+delta);} renderTypeDistribution(); }
+  if(prevType) prevType.addEventListener('click', ()=>moveType(-1));
+  if(nextType) nextType.addEventListener('click', ()=>moveType(1));
+  updateTypeButtons();
   
   refreshAllStats();
   setupRealtimeUpdates();
@@ -486,18 +449,19 @@ document.addEventListener('DOMContentLoaded', () => {
 async function renderTypeDistribution(){
   const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
   const now=new Date();
-  const wInfo=getWeekInfo(new Date(), weekOffset);
-  const mBase=new Date(now.getFullYear(), now.getMonth()+monthOffset, 1);
+  const wInfo=getWeekInfo(new Date(), typeWeekOffset);
+  const mBase=new Date(now.getFullYear(), now.getMonth()+typeMonthOffset, 1);
   const mStart=new Date(mBase.getFullYear(), mBase.getMonth(), 1);
   const mEnd=new Date(mBase.getFullYear(), mBase.getMonth()+1, 0);
-  const sTs=(periodMode==='week'?wInfo.start:mStart).getTime();
-  const eRef=(periodMode==='week'?wInfo.end:mEnd);
+  const sTs=(typeMode==='week'?wInfo.start:mStart).getTime();
+  const eRef=(typeMode==='week'?wInfo.end:mEnd);
   const eTs=new Date(eRef.getFullYear(), eRef.getMonth(), eRef.getDate(), 23,59,59,999).getTime();
   const counts={}; const names={eyeExercise:'눈 운동',stretching:'스트레칭',breathing:'호흡',hydration:'수분',movement:'움직임'};
   breakHistory.filter(b=>b.completed).forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=sTs&&ts<=eTs)) return; const k=names[b.breakType]||b.breakType||'기타'; counts[k]=(counts[k]||0)+1; });
   const canvas=document.getElementById('typeDistributionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
   if(window.typeChart) { window.typeChart.destroy(); }
   window.typeChart = new Chart(ctx,{ type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
+  const infoEl=document.getElementById('typeInfo'); if(infoEl){ infoEl.textContent = (typeMode==='week') ? wInfo.text : `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`; }
 }
 
 async function renderHourlyHeatmap(){

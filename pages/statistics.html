@@ -70,6 +70,9 @@
               <button id="typeModeWeek" class="px-2 py-1 text-xs rounded bg-white">주간</button>
               <button id="typeModeMonth" class="px-2 py-1 text-xs rounded">월간</button>
             </div>
+            <button id="prevType" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">◀</button>
+            <div id="typeInfo" class="text-xs text-gray-600 min-w-[160px] text-center"></div>
+            <button id="nextType" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">▶</button>
           </div>
         </div>
         <div style="height:220px"><canvas id="typeDistributionChart" height="200"></canvas></div>
@@ -80,10 +83,6 @@
         <div class="flex items-center justify-between mb-2">
           <h2 class="text-base font-semibold">시간대별 활동</h2>
           <div class="flex items-center gap-2">
-            <div class="flex items-center gap-1 bg-gray-100 rounded px-1 py-0.5">
-              <button id="heatModeWeek" class="px-2 py-1 text-xs rounded bg-white">주간</button>
-              <button id="heatModeMonth" class="px-2 py-1 text-xs rounded">월간</button>
-            </div>
             <button id="prevWeekHeat" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">◀</button>
             <div id="weekInfoHeat" class="text-xs text-gray-600 min-w-[160px] text-center"></div>
             <button id="nextWeekHeat" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">▶</button>
@@ -94,18 +93,7 @@
 
       <!-- 30일 트렌드 -->
       <section class="bg-white rounded-lg shadow-sm p-4">
-        <div class="flex items-center justify-between mb-2">
-          <h2 class="text-base font-semibold">30일 트렌드</h2>
-          <div class="flex items-center gap-2">
-            <div class="flex items-center gap-1 bg-gray-100 rounded px-1 py-0.5">
-              <button id="trendModeWeek" class="px-2 py-1 text-xs rounded bg-white">주간</button>
-              <button id="trendModeMonth" class="px-2 py-1 text-xs rounded">월간</button>
-            </div>
-            <button id="prevTrend" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">◀</button>
-            <div id="trendInfo" class="text-xs text-gray-600 min-w-[160px] text-center"></div>
-            <button id="nextTrend" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">▶</button>
-          </div>
-        </div>
+        <h2 class="text-base font-semibold mb-2">30일 트렌드</h2>
         <div style="height:200px"><canvas id="trendChart" height="180"></canvas></div>
       </section>
 
