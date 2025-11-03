@@ -5,8 +5,12 @@ import { isSameLocalDay, localDateKey, parseLocalDateKey, startOfLocalDay } from
 // 선택된 날짜 상태
 let selectedDate = new Date();
 selectedDate.setHours(0, 0, 0, 0);
+// 기간/네비게이션 상태
+let periodMode = 'week'; // 'week' | 'month'
 // 주 네비게이션 상태 (0: 이번 주, -1: 지난 주 ...)
 let weekOffset = 0;
+// 월 네비게이션 상태 (0: 이번 달, -1: 지난 달 ...)
+let monthOffset = 0;
 
 /**
  * 선택된 날짜 표시
