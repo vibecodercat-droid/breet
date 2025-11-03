@@ -1,6 +1,5 @@
 import { toCsvAndDownload } from "../lib/csv.js";
-import { groupByWeekdayCompletion } from "../lib/stats-manager.js";
-import { isSameLocalDay, localDateKey, parseLocalDateKey, startOfLocalDay } from "../lib/date-utils.js";
+import { isSameLocalDay, localDateKey, parseLocalDateKey } from "../lib/date-utils.js";
 
 // 선택된 날짜 상태
 let selectedDate = new Date();
@@ -547,38 +546,7 @@ async function renderHourlyHeatmap(){
   const weekInfoHeat = document.getElementById('weekInfoHeat'); if (weekInfoHeat) weekInfoHeat.textContent = labelText;
 }
 
-async function renderTrendChart(){
-  const store = await chrome.storage.local.get('breakHistory');
-  const breakHistory = Array.isArray(store.breakHistory) ? store.breakHistory : [];
-  var labels = [], rates = [];
-  var daysArr = [];
-  for (var i = 0; i < 30; i++) { var d = new Date(); d.setDate(d.getDate() - (29 - i)); d.setHours(0,0,0,0); daysArr.push(d); }
-  for (var j = 0; j < daysArr.length; j++) {
-    var dayDate = daysArr[j]; var total=0, comp=0;
-    for (var k = 0; k < breakHistory.length; k++) { var b = breakHistory[k]; var ts = Date.parse(b.timestamp||0); if (isSameLocalDay(ts, dayDate.getTime())) { total++; if (b.completed) comp++; } }
-    rates.push(total ? Math.round((comp/total)*100) : 0);
-    labels.push((dayDate.getMonth()+1) + '/' + dayDate.getDate());
-  }
-  var canvas = document.getElementById('trendChart');
-  if (!canvas) return;
-  var ctx = canvas.getContext('2d');
-  if (window.trendChart) { try { window.trendChart.destroy(); } catch (_) {} }
-  window.trendChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: '완료율 (%)',
-        data: rates,
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59,130,246,0.1)',
-        fill: true,
-        tension: 0.4
-      }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } }, plugins: { legend: { display: false } } }
-  });
-}
+// trend chart removed
 
 // 세션 완료수 (주간/월간) 렌더링
 async function renderSessionCompletion(){
