@@ -75,8 +75,13 @@ async function refreshSessionStats() {
  */
 async function refreshTodoStats() {
   const dateKey = localDateKey(selectedDate.getTime());
-  const { todosByDate = {} } = await chrome.storage.local.get('todosByDate');
-  const todos = Array.isArray(todosByDate[dateKey]) ? todosByDate[dateKey] : [];
+  const all = await chrome.storage.local.get(['todosByDate','todos']);
+  const todosByDate = all.todosByDate || {};
+  let todos = Array.isArray(todosByDate[dateKey]) ? todosByDate[dateKey] : [];
+  // 폴백: 날짜별 구조가 없고 구형 'todos'만 있을 때 오늘 통계에 반영
+  if ((!todos || todos.length === 0) && Array.isArray(all.todos)) {
+    todos = all.todos;
+  }
   
   const done = todos.filter((t) => t.completed).length;
   const total = todos.length;
@@ -286,7 +291,7 @@ function setupRealtimeUpdates() {
       generateAIAnalysis();
     }
     
-    if (changes.todosByDate) {
+    if (changes.todosByDate || changes.todos) {
       setTimeout(() => {
         refreshTodoStats();
         renderWeekly();
