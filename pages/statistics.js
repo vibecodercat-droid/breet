@@ -255,6 +255,16 @@ async function renderWeekly() {
     if (sameLen) {
       inst.data.labels = labels;
       inst.data.datasets[0].data = todoData;
+      // 툴팁 형식 보장
+      if (!inst.options.plugins) inst.options.plugins = {};
+      if (!inst.options.plugins.tooltip) inst.options.plugins.tooltip = {};
+      inst.options.plugins.tooltip.enabled = true;
+      inst.options.plugins.tooltip.callbacks = {
+        label: function(context){
+          const v = context.parsed.y != null ? context.parsed.y : context.raw;
+          return '완료율: ' + String(v) + '%';
+        }
+      };
       inst.update('none');
       return;
     } else {
@@ -270,7 +280,22 @@ async function renderWeekly() {
         { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
       ]
     },
-    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } } },
+    options: { 
+      responsive: true, 
+      maintainAspectRatio: false, 
+      scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } },
+      plugins: {
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            label: function(context){
+              const v = context.parsed.y != null ? context.parsed.y : context.raw;
+              return '완료율: ' + String(v) + '%';
+            }
+          }
+        }
+      }
+    },
     plugins: [window._breetBarLabelPlugin]
   });
 }
