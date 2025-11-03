@@ -430,11 +430,53 @@ async function renderHourlyHeatmap(){
 }
 
 async function renderTrendChart(){
-  const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
-  const daysArr=Array.from({length:30},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(29-i)); d.setHours(0,0,0,0); return d; });
-  const rates=daysArr.map(d=>{ const day=breakHistory.filter(b=> isSameLocalDay(Date.parse(b.timestamp||0), d.getTime())); const total=day.length; const comp=day.filter(b=>b.completed).length; return total? Math.round(comp/total*100):0; });
-  const canvas=document.getElementById('trendChart'); if(!canvas) return; const ctx=canvas.getContext('2d'); if(window.trendChart){ window.trendChart.destroy(); }
-  window.trendChart=new Chart(ctx,{ type:'line', data:{ labels:daysArr.map(d=>`${d.getMonth()+1}/${d.getDate()}`), datasets:[{ label:'완료율 (%)', data:rates, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.4 }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, max:100 } }, plugins:{ legend:{ display:false } } });
+  const store = await chrome.storage.local.get('breakHistory');
+  const breakHistory = Array.isArray(store.breakHistory) ? store.breakHistory : [];
+  var daysArr = [];
+  for (var i = 0; i < 30; i++) {
+    var d = new Date();
+    d.setDate(d.getDate() - (29 - i));
+    d.setHours(0, 0, 0, 0);
+    daysArr.push(d);
+  }
+  var rates = [];
+  for (var j = 0; j < daysArr.length; j++) {
+    var dayDate = daysArr[j];
+    var dayList = [];
+    for (var k = 0; k < breakHistory.length; k++) {
+      var b = breakHistory[k];
+      var ts = Date.parse(b.timestamp || 0);
+      if (isSameLocalDay(ts, dayDate.getTime())) dayList.push(b);
+    }
+    var total = dayList.length;
+    var comp = 0;
+    for (var m = 0; m < dayList.length; m++) if (dayList[m].completed) comp++;
+    rates.push(total ? Math.round((comp / total) * 100) : 0);
+  }
+  var labels = [];
+  for (var n = 0; n < daysArr.length; n++) {
+    var dd = daysArr[n];
+    labels.push((dd.getMonth() + 1) + '/' + dd.getDate());
+  }
+  var canvas = document.getElementById('trendChart');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (window.trendChart) { try { window.trendChart.destroy(); } catch (_) {} }
+  window.trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '완료율 (%)',
+        data: rates,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } }, plugins: { legend: { display: false } } }
+  });
 }
 
 async function renderStreak(){
