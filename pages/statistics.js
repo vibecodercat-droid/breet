@@ -14,6 +14,10 @@ try { if (typeof window !== 'undefined') { window.periodMode = window.periodMode
 let weekOffset = 0;
 let weeklyMode = 'week'; // 'week' | 'month' (완료율 섹션 전용)
 let monthOffsetWeekly = 0; // 완료율 섹션 월간 네비 전용
+// 세션 완료수 섹션 상태
+let sessionMode = 'week';
+let sessionWeekOffset = 0;
+let sessionMonthOffset = 0;
 // 브레이크 타입 분포 전용 기간/네비게이션 상태
 let typeMode = 'week'; // 'week' | 'month'
 let typeWeekOffset = 0;
@@ -319,6 +323,7 @@ function setupRealtimeUpdates() {
     if (changes.breakHistory) {
       refreshSessionStats();
       renderWeekly();
+    renderSessionCompletion();
       renderAttendanceCalendar();
       renderTypeDistribution();
       renderHourlyHeatmap();
@@ -354,6 +359,7 @@ async function refreshAllStats() {
     refreshSessionStats(),
     refreshTodoStats(),
     renderWeekly(),
+    renderSessionCompletion(),
     renderAttendanceCalendar(),
     renderTypeDistribution(),
     renderHourlyHeatmap(),
@@ -416,6 +422,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const wmW=document.getElementById('weeklyModeWeek'); if(wmW) wmW.addEventListener('click', ()=>setWeeklyMode('week'));
   const wmM=document.getElementById('weeklyModeMonth'); if(wmM) wmM.addEventListener('click', ()=>setWeeklyMode('month'));
   updateWeeklyButtons();
+  // 세션 완료수 섹션 토글/네비게이션
+  function setSessionMode(mode){ sessionMode = mode; updateSessionButtons(); renderSessionCompletion(); }
+  function updateSessionButtons(){ const w=document.getElementById('sessionModeWeek'); const m=document.getElementById('sessionModeMonth'); if(w&&m){ if(sessionMode==='week'){ w.classList.add('bg-white'); m.classList.remove('bg-white'); } else { m.classList.add('bg-white'); w.classList.remove('bg-white'); } } }
+  const smw=document.getElementById('sessionModeWeek'); if(smw) smw.addEventListener('click', ()=>setSessionMode('week'));
+  const smm=document.getElementById('sessionModeMonth'); if(smm) smm.addEventListener('click', ()=>setSessionMode('month'));
+  const prevSession=document.getElementById('prevSession'); const nextSession=document.getElementById('nextSession');
+  function moveSession(delta){ if(sessionMode==='week'){ sessionWeekOffset=Math.min(0, sessionWeekOffset+delta);} else { sessionMonthOffset=Math.min(0, sessionMonthOffset+delta);} renderSessionCompletion(); }
+  if(prevSession) prevSession.addEventListener('click', ()=>moveSession(-1));
+  if(nextSession) nextSession.addEventListener('click', ()=>moveSession(1));
+  updateSessionButtons();
   // 시간대별 활동 모드 토글
   function setHeatMode(mode){ heatMode = mode; updateHeatButtons(); renderHourlyHeatmap(); }
   function updateHeatButtons(){
@@ -562,6 +578,35 @@ async function renderTrendChart(){
     },
     options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } }, plugins: { legend: { display: false } } }
   });
+}
+
+// 세션 완료수 (주간/월간) 렌더링
+async function renderSessionCompletion(){
+  const { breakHistory=[] } = await chrome.storage.local.get('breakHistory');
+  let labels = [];
+  let data = [];
+  const infoEl = document.getElementById('sessionInfo');
+  if (sessionMode==='week'){
+    const info=getWeekInfo(new Date(), sessionWeekOffset);
+    if(infoEl) infoEl.textContent = info.text;
+    labels = ['월','화','수','목','금','토','일'];
+    const bucket=Array(7).fill(0);
+    const s=info.start.getTime(); const e=new Date(info.end.getFullYear(), info.end.getMonth(), info.end.getDate(),23,59,59,999).getTime();
+    breakHistory.forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=s&&ts<=e)) return; if(!b.completed) return; const d=new Date(ts).getDay(); const idx=(d===0)?6:(d-1); bucket[idx]++; });
+    data = bucket;
+  } else {
+    const now=new Date(); const base=new Date(now.getFullYear(), now.getMonth()+sessionMonthOffset,1);
+    const mStart=new Date(base.getFullYear(), base.getMonth(),1); const mEnd=new Date(base.getFullYear(), base.getMonth()+1,0);
+    if(infoEl) infoEl.textContent = `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`;
+    const s=mStart.getTime(); const e=new Date(mEnd.getFullYear(), mEnd.getMonth(), mEnd.getDate(),23,59,59,999).getTime();
+    const days=mEnd.getDate(); labels = Array.from({length:days},(_,i)=>String(i+1));
+    const bucket=Array(days).fill(0);
+    breakHistory.forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=s&&ts<=e)) return; if(!b.completed) return; const d=new Date(ts).getDate(); bucket[d-1]++; });
+    data=bucket;
+  }
+  const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
+  if(window.sessionChart){ try{ window.sessionChart.destroy(); }catch(_){} }
+  window.sessionChart = new Chart(ctx,{ type:'bar', data:{ labels, datasets:[{ label:'완료수', data, backgroundColor:'rgba(59,130,246,0.6)', borderColor:'rgba(59,130,246,1)', borderWidth:2 }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } } });
 }
 
 async function renderStreak(){
