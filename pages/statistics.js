@@ -12,6 +12,8 @@ var monthOffset = 0;
 try { if (typeof window !== 'undefined') { window.periodMode = window.periodMode || periodMode; window.monthOffset = window.monthOffset || monthOffset; } } catch (_) {}
 // 주 네비게이션(주간 완료율/히트맵)
 let weekOffset = 0;
+let weeklyMode = 'week'; // 'week' | 'month' (완료율 섹션 전용)
+let monthOffsetWeekly = 0; // 완료율 섹션 월간 네비 전용
 // 브레이크 타입 분포 전용 기간/네비게이션 상태
 let typeMode = 'week'; // 'week' | 'month'
 let typeWeekOffset = 0;
@@ -161,53 +163,82 @@ async function renderWeekly() {
     'todosByDate'
   ]);
   
-  // 기간 정보 계산 및 표시 (주간 고정)
-  const weekInfo = getWeekInfo(new Date(), weekOffset);
-  const startTs = weekInfo.start.getTime();
-  const endTs = new Date(weekInfo.end.getFullYear(), weekInfo.end.getMonth(), weekInfo.end.getDate(), 23,59,59,999).getTime();
   const weekInfoEl = document.getElementById('weekInfo');
-  if (weekInfoEl) {
-    weekInfoEl.textContent = weekInfo.text;
+  let labels = [];
+  let sessionData = [];
+  let todoData = [];
+  if (weeklyMode === 'week') {
+    const weekInfo = getWeekInfo(new Date(), weekOffset);
+    const startTs = weekInfo.start.getTime();
+    const endTs = new Date(weekInfo.end.getFullYear(), weekInfo.end.getMonth(), weekInfo.end.getDate(), 23,59,59,999).getTime();
+    if (weekInfoEl) weekInfoEl.textContent = weekInfo.text;
+    labels = ['월','화','수','목','금','토','일'];
+    const bucketLen = 7;
+    const sessionCounts = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
+    for (const b of breakHistory) {
+      const ts = Date.parse(b.timestamp || 0);
+      if (!(ts >= startTs && ts <= endTs)) continue;
+      const gd = new Date(ts).getDay();
+      const idx = (gd === 0) ? 6 : (gd - 1);
+      sessionCounts[idx].total += 1;
+      if (b.completed) sessionCounts[idx].completed += 1;
+    }
+    sessionData = sessionCounts.map(c => c.total ? Math.round((c.completed / c.total) * 100) : 0);
+    const todoWeekly = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
+    for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
+      if (!Array.isArray(todos)) continue;
+      const ts = parseLocalDateKey(dateKeyStr);
+      if (!(ts >= startTs && ts <= endTs)) continue;
+      const dayOfWeek = new Date(ts).getDay();
+      const idx = (dayOfWeek === 0) ? 6 : (dayOfWeek - 1);
+      todos.forEach((todo) => {
+        todoWeekly[idx].total += 1;
+        if (todo.completed) todoWeekly[idx].completed += 1;
+      });
+    }
+    todoData = todoWeekly.map((w) => w.total ? Math.round((w.completed / w.total) * 100) : 0);
+  } else {
+    const now = new Date();
+    const base = new Date(now.getFullYear(), now.getMonth()+monthOffsetWeekly, 1);
+    const mStart = new Date(base.getFullYear(), base.getMonth(), 1);
+    const mEnd = new Date(base.getFullYear(), base.getMonth()+1, 0);
+    const startTs = mStart.getTime();
+    const endTs = new Date(mEnd.getFullYear(), mEnd.getMonth(), mEnd.getDate(), 23,59,59,999).getTime();
+    if (weekInfoEl) weekInfoEl.textContent = `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`;
+    const daysInMonth = mEnd.getDate();
+    labels = Array.from({length: daysInMonth}, (_,i)=> String(i+1));
+    const sessionCounts = Array.from({ length: daysInMonth }, () => ({ total: 0, completed: 0 }));
+    for (const b of breakHistory) {
+      const ts = Date.parse(b.timestamp || 0);
+      if (!(ts >= startTs && ts <= endTs)) continue;
+      const d = new Date(ts).getDate();
+      const idx = d - 1;
+      sessionCounts[idx].total += 1;
+      if (b.completed) sessionCounts[idx].completed += 1;
+    }
+    sessionData = sessionCounts.map(c => c.total ? Math.round((c.completed / c.total) * 100) : 0);
+    const todoMonthly = Array.from({ length: daysInMonth }, () => ({ total: 0, completed: 0 }));
+    for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
+      if (!Array.isArray(todos)) continue;
+      const ts = parseLocalDateKey(dateKeyStr);
+      if (!(ts >= startTs && ts <= endTs)) continue;
+      const date = new Date(ts).getDate();
+      const idx = date - 1;
+      todos.forEach((todo) => {
+        todoMonthly[idx].total += 1;
+        if (todo.completed) todoMonthly[idx].completed += 1;
+      });
+    }
+    todoData = todoMonthly.map((w) => w.total ? Math.round((w.completed / w.total) * 100) : 0);
   }
-  
-  // 세션 기준 통계 (주간: 월~일)
-  const bucketLen = 7;
-  const sessionCounts = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
-  for (const b of breakHistory) {
-    const ts = Date.parse(b.timestamp || 0);
-    if (!(ts >= startTs && ts <= endTs)) continue;
-    const gd = new Date(ts).getDay();
-    const idx = (gd === 0) ? 6 : (gd - 1);
-    sessionCounts[idx].total += 1;
-    if (b.completed) sessionCounts[idx].completed += 1;
-  }
-  const sessionData = sessionCounts.map(c => c.total ? Math.round((c.completed / c.total) * 100) : 0);
-  
-  // 투두 기준 주간 통계
-  const todoWeekly = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
-  for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
-    if (!Array.isArray(todos)) continue;
-    const ts = parseLocalDateKey(dateKeyStr);
-    if (!(ts >= startTs && ts <= endTs)) continue;
-    const dayOfWeek = new Date(ts).getDay();
-    const idx = (dayOfWeek === 0) ? 6 : (dayOfWeek - 1);
-    todos.forEach((todo) => {
-      todoWeekly[idx].total += 1;
-      if (todo.completed) todoWeekly[idx].completed += 1;
-    });
-  }
-  const todoData = todoWeekly.map((w) => 
-    w.total ? Math.round((w.completed / w.total) * 100) : 0
-  );
-  
   const canvas = document.getElementById('weeklyChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  // 기존 Chart.js 인스턴스가 정상일 경우 업데이트, 아니면 재생성
   if (window.weeklyChartInstance) {
     const inst = window.weeklyChartInstance;
-    const canUpdate = inst && inst.data && Array.isArray(inst.data.datasets) && inst.data.datasets.length >= 2;
-    if (canUpdate) {
+    const sameLen = inst && inst.data && Array.isArray(inst.data.labels) && inst.data.labels.length === labels.length;
+    if (sameLen) {
+      inst.data.labels = labels;
       inst.data.datasets[0].data = sessionData;
       inst.data.datasets[1].data = todoData;
       inst.update('none');
@@ -220,7 +251,7 @@ async function renderWeekly() {
   window.weeklyChartInstance = new window.Chart(ctx, {
     type: 'bar',
     data: {
-      labels: ['월','화','수','목','금','토','일'],
+      labels: labels,
       datasets: [
         { label: '세션 완료율', data: sessionData, backgroundColor: 'rgba(59, 130, 246, 0.6)', borderColor: 'rgba(59,130,246,1)', borderWidth: 2 },
         { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
@@ -383,9 +414,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const nextWeekBtn = document.getElementById('nextWeek');
   const prevWeekHeat = document.getElementById('prevWeekHeat');
   const nextWeekHeat = document.getElementById('nextWeekHeat');
-  function moveWeek(delta){ weekOffset = Math.min(0, weekOffset + delta); renderWeekly(); }
-  if (prevWeekBtn) prevWeekBtn.addEventListener('click', ()=>moveWeek(-1));
-  if (nextWeekBtn) nextWeekBtn.addEventListener('click', ()=>moveWeek(1));
+  function moveWeeklyPeriod(delta){ if(weeklyMode==='week'){ weekOffset = Math.min(0, weekOffset + delta);} else { monthOffsetWeekly = Math.min(0, monthOffsetWeekly + delta);} renderWeekly(); }
+  if (prevWeekBtn) prevWeekBtn.addEventListener('click', ()=>moveWeeklyPeriod(-1));
+  if (nextWeekBtn) nextWeekBtn.addEventListener('click', ()=>moveWeeklyPeriod(1));
   // 시간대별 활동 네비게이션 (주/월 독립)
   function moveHeat(delta){ if(heatMode==='week'){ heatWeekOffset=Math.min(0, heatWeekOffset+delta);} else { heatMonthOffset=Math.min(0, heatMonthOffset+delta);} renderHourlyHeatmap(); }
   if (prevWeekHeat) prevWeekHeat.addEventListener('click', ()=>moveHeat(-1));
@@ -404,6 +435,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if(prevType) prevType.addEventListener('click', ()=>moveType(-1));
   if(nextType) nextType.addEventListener('click', ()=>moveType(1));
   updateTypeButtons();
+  // 완료율(주/월) 모드 토글
+  function setWeeklyMode(mode){ weeklyMode = mode; updateWeeklyButtons(); renderWeekly(); }
+  function updateWeeklyButtons(){ const w=document.getElementById('weeklyModeWeek'); const m=document.getElementById('weeklyModeMonth'); if(w&&m){ if(weeklyMode==='week'){ w.classList.add('bg-white'); m.classList.remove('bg-white'); } else { m.classList.add('bg-white'); w.classList.remove('bg-white'); } } }
+  const wmW=document.getElementById('weeklyModeWeek'); if(wmW) wmW.addEventListener('click', ()=>setWeeklyMode('week'));
+  const wmM=document.getElementById('weeklyModeMonth'); if(wmM) wmM.addEventListener('click', ()=>setWeeklyMode('month'));
+  updateWeeklyButtons();
   // 시간대별 활동 모드 토글
   function setHeatMode(mode){ heatMode = mode; updateHeatButtons(); renderHourlyHeatmap(); }
   function updateHeatButtons(){
