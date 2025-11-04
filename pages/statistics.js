@@ -291,6 +291,7 @@ async function renderWeekly() {
         stroke: { width: 3, curve: 'smooth' },
         markers: { size: 4 },
         tooltip: { enabled: true, y: { formatter: (v)=> `${v}%` } },
+        grid: { borderColor: 'rgba(0,0,0,0.05)', strokeDashArray: 2 },
         colors: ['#22c55e'],
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
       };
@@ -836,6 +837,7 @@ async function renderSessionCompletion(){
         stroke: { width: 3, curve: 'smooth' },
         markers: { size: 4 },
         tooltip: { enabled: true, y: { formatter: (v)=> `${v}회` } },
+        grid: { borderColor: 'rgba(0,0,0,0.05)', strokeDashArray: 2 },
         colors: ['#3b82f6'],
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
       };
