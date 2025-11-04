@@ -191,7 +191,19 @@ async function renderWeekly() {
         if (todo.completed) todoWeekly[idx].completed += 1;
       });
     }
-    todoData = todoWeekly.map((w) => w.total ? Math.round((w.completed / w.total) * 100) : 0);
+    let sumTotals = todoWeekly.reduce((s,w)=>s+w.total,0);
+    if (sumTotals === 0) {
+      // 폴백: 투두 데이터가 없으면 세션 기록으로 완료율 계산
+      const bhBuckets = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
+      breakHistory.forEach((b)=>{
+        const ts = Date.parse(b.timestamp||0); if (!(ts >= startTs && ts <= endTs)) return;
+        const d = new Date(ts).getDay(); const idx = (d===0)?6:(d-1);
+        bhBuckets[idx].total += 1; if (b.completed) bhBuckets[idx].completed += 1;
+      });
+      todoData = bhBuckets.map((w)=> w.total? Math.round((w.completed/w.total)*100):0);
+    } else {
+      todoData = todoWeekly.map((w) => w.total ? Math.round((w.completed / w.total) * 100) : 0);
+    }
 
     // 지난주 비교 데이터
     const lastInfo = getWeekInfo(new Date(), weekOffset - 1);
@@ -232,7 +244,18 @@ async function renderWeekly() {
         if (todo.completed) todoMonthly[idx].completed += 1;
       });
     }
-    todoData = todoMonthly.map((w) => w.total ? Math.round((w.completed / w.total) * 100) : 0);
+    let sumMonthTotals = todoMonthly.reduce((s,w)=>s+w.total,0);
+    if (sumMonthTotals === 0) {
+      const bhBuckets = Array.from({ length: daysInMonth }, () => ({ total: 0, completed: 0 }));
+      breakHistory.forEach((b)=>{
+        const ts = Date.parse(b.timestamp||0); if (!(ts >= startTs && ts <= endTs)) return;
+        const d = new Date(ts).getDate(); const idx = d-1;
+        bhBuckets[idx].total += 1; if (b.completed) bhBuckets[idx].completed += 1;
+      });
+      todoData = bhBuckets.map((w)=> w.total? Math.round((w.completed/w.total)*100):0);
+    } else {
+      todoData = todoMonthly.map((w) => w.total ? Math.round((w.completed / w.total) * 100) : 0);
+    }
   }
   const canvas = document.getElementById('weeklyChart');
   if (!canvas) return;
