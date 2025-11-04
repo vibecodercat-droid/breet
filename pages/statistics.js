@@ -505,9 +505,29 @@ async function renderTypeDistribution(){
   const eTs=new Date(eRef.getFullYear(), eRef.getMonth(), eRef.getDate(), 23,59,59,999).getTime();
   const counts={}; const names={eyeExercise:'눈 운동',stretching:'스트레칭',breathing:'호흡',hydration:'수분',movement:'움직임'};
   breakHistory.filter(b=>b.completed).forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=sTs&&ts<=eTs)) return; const k=names[b.breakType]||b.breakType||'기타'; counts[k]=(counts[k]||0)+1; });
-  const canvas=document.getElementById('typeDistributionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
-  if(window.typeChart) { window.typeChart.destroy(); }
-  window.typeChart = new Chart(ctx,{ type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'] }] }, options:{ responsive:true, maintainAspectRatio:false, cutout: '0%', plugins:{ legend:{ position:'bottom' } }, scales: {} } });
+  const canvas=document.getElementById('typeDistributionChart'); if(!canvas) return;
+  // 숫자형 뷰로 렌더링 (막대/파이 대신)
+  if(window.typeChart){ try{ window.typeChart.destroy(); } catch(_){} }
+  canvas.style.display = 'none';
+  const parent = canvas.parentElement || canvas;
+  let box = parent.querySelector('#typeDistributionNumbers');
+  if(!box){ box = document.createElement('div'); box.id = 'typeDistributionNumbers'; parent.appendChild(box); }
+  const sorted = Object.entries(counts).sort((a,b)=> b[1] - a[1]);
+  box.className = 'h-full flex items-end gap-10';
+  box.innerHTML = '';
+  sorted.forEach(([label, value]) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'flex flex-col items-center justify-end';
+    const num = document.createElement('div');
+    num.className = 'text-4xl font-bold text-blue-600';
+    num.textContent = String(value);
+    const cap = document.createElement('div');
+    cap.className = 'text-xs text-gray-600 mt-1';
+    cap.textContent = label;
+    wrap.appendChild(num);
+    wrap.appendChild(cap);
+    box.appendChild(wrap);
+  });
   const infoEl=document.getElementById('typeInfo'); if(infoEl){ infoEl.textContent = (typeMode==='week') ? wInfo.text : `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`; }
 }
 
