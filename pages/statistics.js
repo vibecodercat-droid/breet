@@ -506,29 +506,76 @@ async function renderTypeDistribution(){
   const counts={}; const names={eyeExercise:'눈 운동',stretching:'스트레칭',breathing:'호흡',hydration:'수분',movement:'움직임'};
   breakHistory.filter(b=>b.completed).forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=sTs&&ts<=eTs)) return; const k=names[b.breakType]||b.breakType||'기타'; counts[k]=(counts[k]||0)+1; });
   const canvas=document.getElementById('typeDistributionChart'); if(!canvas) return;
-  // 숫자형 뷰로 렌더링 (막대/파이 대신)
+  // 카드형 + 아이콘 + 퍼센트 시각화
   if(window.typeChart){ try{ window.typeChart.destroy(); } catch(_){} }
   canvas.style.display = 'none';
   const parent = canvas.parentElement || canvas;
-  let box = parent.querySelector('#typeDistributionNumbers');
-  if(!box){ box = document.createElement('div'); box.id = 'typeDistributionNumbers'; parent.appendChild(box); }
-  const sorted = Object.entries(counts).sort((a,b)=> b[1] - a[1]);
-  box.className = 'h-full flex items-end gap-10';
-  box.innerHTML = '';
-  sorted.forEach(([label, value]) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'flex flex-col items-center justify-end';
-    const num = document.createElement('div');
-    num.className = 'text-4xl font-bold text-blue-600';
-    num.textContent = String(value);
-    const cap = document.createElement('div');
-    cap.className = 'text-xs text-gray-600 mt-1';
-    cap.textContent = label;
-    wrap.appendChild(num);
-    wrap.appendChild(cap);
-    box.appendChild(wrap);
-  });
-  const infoEl=document.getElementById('typeInfo'); if(infoEl){ infoEl.textContent = (typeMode==='week') ? wInfo.text : `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`; }
+  // 기존 숫자 뷰 제거
+  const oldNum = parent.querySelector('#typeDistributionNumbers'); if(oldNum) oldNum.remove();
+  let grid = parent.querySelector('#typeDistributionCards');
+  if(!grid){ grid = document.createElement('div'); grid.id='typeDistributionCards'; parent.appendChild(grid); }
+  const entries = Object.entries(counts);
+  const total = entries.reduce((s,[,v])=> s+v, 0);
+  const sorted = entries.sort((a,b)=> b[1]-a[1]);
+  grid.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3';
+  grid.innerHTML = '';
+  if (total === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'text-sm text-gray-500';
+    empty.textContent = '아직 완료된 세션이 없어요.';
+    grid.appendChild(empty);
+  } else {
+    const palette = {
+      '눈 운동': { bg: 'rgba(14,165,233,0.12)', fg: '#0284c7', icon: '👀' },
+      '스트레칭': { bg: 'rgba(16,185,129,0.12)', fg: '#059669', icon: '🧘' },
+      '호흡': { bg: 'rgba(99,102,241,0.12)', fg: '#4f46e5', icon: '😮‍💨' },
+      '수분': { bg: 'rgba(59,130,246,0.12)', fg: '#2563eb', icon: '💧' },
+      '움직임': { bg: 'rgba(234,179,8,0.15)', fg: '#b45309', icon: '🚶' },
+      '기타': { bg: 'rgba(107,114,128,0.12)', fg: '#374151', icon: '✨' }
+    };
+    sorted.forEach(([label, value])=>{
+      const pct = total ? Math.round((value/total)*100) : 0;
+      const c = palette[label] || palette['기타'];
+      const card = document.createElement('div');
+      card.className = 'rounded-md p-3 flex items-center gap-3';
+      card.style.backgroundColor = c.bg;
+      const icon = document.createElement('div');
+      icon.className = 'w-9 h-9 flex items-center justify-center rounded-full text-lg';
+      icon.style.backgroundColor = 'rgba(255,255,255,0.8)';
+      icon.style.color = c.fg;
+      icon.textContent = c.icon;
+      const body = document.createElement('div');
+      body.className = 'flex-1 min-w-0';
+      const top = document.createElement('div');
+      top.className = 'flex items-baseline justify-between';
+      const name = document.createElement('div');
+      name.className = 'text-sm font-medium';
+      name.style.color = c.fg;
+      name.textContent = label;
+      const stat = document.createElement('div');
+      stat.className = 'text-sm';
+      stat.innerHTML = `<span class="font-semibold" style="color:${c.fg}">${value}</span>회 · ${pct}%`;
+      top.appendChild(name); top.appendChild(stat);
+      const barWrap = document.createElement('div');
+      barWrap.className = 'mt-2 h-2 w-full rounded bg-white/70 overflow-hidden';
+      const bar = document.createElement('div'); bar.className='h-full rounded'; bar.style.backgroundColor=c.fg; bar.style.width = pct + '%';
+      barWrap.appendChild(bar);
+      body.appendChild(top); body.appendChild(barWrap);
+      card.appendChild(icon); card.appendChild(body);
+      grid.appendChild(card);
+    });
+  }
+  const infoEl=document.getElementById('typeInfo');
+  if(infoEl){
+    const periodText = (typeMode==='week') ? wInfo.text : `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`;
+    if(total>0){
+      const [topLabel, topVal] = sorted[0];
+      const topPct = Math.round((topVal/total)*100);
+      infoEl.textContent = `${periodText} · 최다: ${topLabel} ${topVal}회 (${topPct}%)`;
+    } else {
+      infoEl.textContent = `${periodText}`;
+    }
+  }
 }
 
 async function renderHourlyHeatmap(){
