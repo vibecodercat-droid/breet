@@ -26,10 +26,11 @@
         <!-- 세션 완료 기준 -->
         <div class="border-b pb-3 mb-3">
           <h3 class="text-sm font-medium text-gray-700 mb-2">세션 완료 기준</h3>
-          <div class="grid grid-cols-3 gap-4">
+          <div class="grid grid-cols-4 gap-4">
             <div><div class="text-sm text-gray-500">완료</div><div id="sessionDone" class="text-2xl font-semibold">0</div></div>
-            <div><div class="text-sm text-gray-500">쉼 횟수</div><div id="sessionCount" class="text-2xl font-semibold">0</div></div>
-            <div><div class="text-sm text-gray-500">완료율</div><div id="sessionRate" class="text-2xl font-semibold">0%</div></div>
+            <div><div class="text-sm text-gray-500">휴식 횟수</div><div id="sessionCount" class="text-2xl font-semibold">0</div></div>
+            <div><div class="text-sm text-gray-500">작업 시간</div><div id="sessionWorkTime" class="text-2xl font-semibold">0분</div></div>
+            <div><div class="text-sm text-gray-500">휴식 시간</div><div id="sessionBreakTime" class="text-2xl font-semibold">0분</div></div>
           </div>
         </div>
         
@@ -143,7 +144,7 @@
         <button id="exportCsv" class="mt-2 px-3 py-2 rounded-md bg-gray-200 hover:bg-gray-300">다운로드</button>
       </section>
     </main>
-    <script src="../vendor/chart.min.js"></script>
-    <script src="statistics.js" type="module"></script>
+    <script src="../vendor/chart.min.js?v=2"></script>
+    <script src="statistics.js?v=2" type="module"></script>
   </body>
 </html>
