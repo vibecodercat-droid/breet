@@ -284,19 +284,25 @@ async function renderWeekly() {
       if (window.apexWeekly) { try { window.apexWeekly.destroy(); } catch(_) {} }
       const opts = {
         chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true }, events: {
-          mounted: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','#424242'); p.style.stroke = '#424242'; }); } catch(_){} },
-          updated: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','#424242'); p.style.stroke = '#424242'; }); } catch(_){} }
+          mounted: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','rgba(66,66,66,0.5)'); p.style.stroke = 'rgba(66,66,66,0.5)'; }); } catch(_){} },
+          updated: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','rgba(66,66,66,0.5)'); p.style.stroke = 'rgba(66,66,66,0.5)'; }); } catch(_){} }
         } },
         series: [{ name: '투두 완료율', data: todoData }],
         xaxis: { categories: labels },
         yaxis: { min: 0, max: 100, labels: { formatter: (v)=> `${Math.round(v)}%` } },
         dataLabels: { enabled: true, formatter: (v)=> `${v}%`, offsetY: -8, style: { fontSize: '11px', colors: ['#22c55e'] } },
-        stroke: { width: 3, curve: 'smooth', colors: ['#424242'], opacity: 1 },
+        stroke: { width: 3, curve: 'smooth' },
         markers: { size: 4, colors: ['#22c55e'], strokeColors: '#d1d5db', strokeOpacity: 1, fillOpacity: 1 },
         tooltip: { enabled: true, y: { formatter: (v)=> `${v}%` } },
         grid: { borderColor: 'rgba(0,0,0,0.05)', strokeDashArray: 2 },
-        colors: ['#424242'],
-        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
+        colors: ['rgba(66,66,66,0.5)'],
+        fill: { type: 'gradient', colors: ['#22c55e'], gradient: { 
+          shadeIntensity: 0,
+          gradientToColors: ['#22c55e'],
+          opacityFrom: 0.12,
+          opacityTo: 0.02,
+          stops: [0, 100]
+        } }
       };
       const chart = new ApexChartsClass(el, opts);
       chart.render();
@@ -833,19 +839,25 @@ async function renderSessionCompletion(){
       if (window.apexSession) { try { window.apexSession.destroy(); } catch(_) {} }
       const opts = {
         chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true }, events: {
-          mounted: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','#424242'); p.style.stroke = '#424242'; }); } catch(_){} },
-          updated: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','#424242'); p.style.stroke = '#424242'; }); } catch(_){} }
+          mounted: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','rgba(66,66,66,0.5)'); p.style.stroke = 'rgba(66,66,66,0.5)'; }); } catch(_){} },
+          updated: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','rgba(66,66,66,0.5)'); p.style.stroke = 'rgba(66,66,66,0.5)'; }); } catch(_){} }
         } },
         series: [{ name: '완료수', data: data }],
         xaxis: { categories: labels },
         yaxis: { min: 0, labels: { formatter: (v)=> `${Math.round(v)}회` } },
         dataLabels: { enabled: true, formatter: (v)=> `${v}회`, offsetY: -8, style: { fontSize: '11px', colors: ['#3b82f6'] } },
-        stroke: { width: 3, curve: 'smooth', colors: ['#424242'], opacity: 1 },
+        stroke: { width: 3, curve: 'smooth' },
         markers: { size: 4, colors: ['#3b82f6'], strokeColors: '#d1d5db', strokeOpacity: 1, fillOpacity: 1 },
         tooltip: { enabled: true, y: { formatter: (v)=> `${v}회` } },
         grid: { borderColor: 'rgba(0,0,0,0.05)', strokeDashArray: 2 },
-        colors: ['#424242'],
-        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
+        colors: ['rgba(66,66,66,0.5)'],
+        fill: { type: 'gradient', colors: ['#3b82f6'], gradient: { 
+          shadeIntensity: 0,
+          gradientToColors: ['#3b82f6'],
+          opacityFrom: 0.12,
+          opacityTo: 0.02,
+          stops: [0, 100]
+        } }
       };
       const chart = new ApexChartsClass(el, opts);
       chart.render();
