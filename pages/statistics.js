@@ -283,7 +283,10 @@ async function renderWeekly() {
       el.style.display = 'block';
       if (window.apexWeekly) { try { window.apexWeekly.destroy(); } catch(_) {} }
       const opts = {
-        chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true } },
+        chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true }, events: {
+          mounted: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','#424242'); p.style.stroke = '#424242'; }); } catch(_){} },
+          updated: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','#424242'); p.style.stroke = '#424242'; }); } catch(_){} }
+        } },
         series: [{ name: '투두 완료율', data: todoData }],
         xaxis: { categories: labels },
         yaxis: { min: 0, max: 100, labels: { formatter: (v)=> `${Math.round(v)}%` } },
@@ -829,7 +832,10 @@ async function renderSessionCompletion(){
       el.style.display = 'block';
       if (window.apexSession) { try { window.apexSession.destroy(); } catch(_) {} }
       const opts = {
-        chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true } },
+        chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true }, events: {
+          mounted: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','#424242'); p.style.stroke = '#424242'; }); } catch(_){} },
+          updated: (ctx)=>{ try{ const paths = ctx.el.querySelectorAll('.apexcharts-series path'); paths.forEach(p=>{ p.setAttribute('stroke','#424242'); p.style.stroke = '#424242'; }); } catch(_){} }
+        } },
         series: [{ name: '완료수', data: data }],
         xaxis: { categories: labels },
         yaxis: { min: 0, labels: { formatter: (v)=> `${Math.round(v)}회` } },
