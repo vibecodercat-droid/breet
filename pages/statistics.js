@@ -287,12 +287,12 @@ async function renderWeekly() {
         series: [{ name: '투두 완료율', data: todoData }],
         xaxis: { categories: labels },
         yaxis: { min: 0, max: 100, labels: { formatter: (v)=> `${Math.round(v)}%` } },
-        dataLabels: { enabled: true, formatter: (v)=> `${v}%`, offsetY: -8, style: { fontSize: '11px' } },
-        stroke: { width: 3, curve: 'smooth', colors: ['#424242'] },
-        markers: { size: 4 },
+        dataLabels: { enabled: true, formatter: (v)=> `${v}%`, offsetY: -8, style: { fontSize: '11px', colors: ['#22c55e'] } },
+        stroke: { width: 3, curve: 'smooth' },
+        markers: { size: 4, colors: ['#22c55e'], strokeColors: '#424242' },
         tooltip: { enabled: true, y: { formatter: (v)=> `${v}%` } },
         grid: { borderColor: 'rgba(0,0,0,0.05)', strokeDashArray: 2 },
-        colors: ['#22c55e'],
+        colors: ['#424242'],
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
       };
       const chart = new ApexChartsClass(el, opts);
@@ -833,12 +833,12 @@ async function renderSessionCompletion(){
         series: [{ name: '완료수', data: data }],
         xaxis: { categories: labels },
         yaxis: { min: 0, labels: { formatter: (v)=> `${Math.round(v)}회` } },
-        dataLabels: { enabled: true, formatter: (v)=> `${v}회`, offsetY: -8, style: { fontSize: '11px' } },
-        stroke: { width: 3, curve: 'smooth', colors: ['#424242'] },
-        markers: { size: 4 },
+        dataLabels: { enabled: true, formatter: (v)=> `${v}회`, offsetY: -8, style: { fontSize: '11px', colors: ['#3b82f6'] } },
+        stroke: { width: 3, curve: 'smooth' },
+        markers: { size: 4, colors: ['#3b82f6'], strokeColors: '#424242' },
         tooltip: { enabled: true, y: { formatter: (v)=> `${v}회` } },
         grid: { borderColor: 'rgba(0,0,0,0.05)', strokeDashArray: 2 },
-        colors: ['#3b82f6'],
+        colors: ['#424242'],
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
       };
       const chart = new ApexChartsClass(el, opts);
