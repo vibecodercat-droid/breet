@@ -224,24 +224,14 @@ async function renderWeekly() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (window.weeklyChartInstance) { try { window.weeklyChartInstance.destroy(); } catch(_) {} }
-  // 라인 차트 + 포인트 라벨
-  if (!window._pointValueLabelPlugin) {
-    window._pointValueLabelPlugin = {
-      id: 'pointValueLabels',
-      afterDatasetsDraw(chart){
-        const {ctx, data} = chart; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.font='12px sans-serif'; ctx.fillStyle='#374151';
-        chart.getDatasetMeta(0).data.forEach((el, i)=>{ const v = data.datasets[0].data[i]; if(v==null) return; const {x,y}=el.tooltipPosition(); ctx.fillText(String(v)+'%', x, y-6); });
-        ctx.restore();
-      }
-    }; try { Chart.register(window._pointValueLabelPlugin); } catch(_) {}
-  }
+  // 포인트 라벨 플러그인은 이벤트 간섭 이슈가 있어 제거
   const weeklyConfig = {
     type: 'line',
     data: {
       labels: labels,
-      datasets: [ { type:'line', label: '투두 완료율', data: todoData, borderColor: 'rgba(34,197,94,1)', backgroundColor: 'rgba(34,197,94,0.15)', borderWidth: 2, tension: 0.3, pointRadius: 4, pointBackgroundColor:'#1d4ed8', pointBorderColor:'#1d4ed8', fill:false } ]
+      datasets: [ { type:'line', label: '투두 완료율', data: todoData, borderColor: 'rgba(34,197,94,1)', backgroundColor: 'rgba(34,197,94,0.15)', borderWidth: 2, tension: 0.3, pointRadius: 4, pointHoverRadius:6, pointBackgroundColor:'#1d4ed8', pointBorderColor:'#1d4ed8', fill:true } ]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins:{ legend:{display:false}, tooltip:{ enabled:true }, pointValueLabels:{} }, events:['mousemove','mouseout','click','touchstart','touchmove'], scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } } }
+    options: { responsive: true, maintainAspectRatio: false, plugins:{ legend:{display:false}, tooltip:{ enabled:true } }, events:['mousemove','mouseout','click','touchstart','touchmove'], scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } } }
   };
   const buildWeekly = ()=>{ window.weeklyChartInstance = new window.Chart(ctx, weeklyConfig); };
   if (document.visibilityState !== 'visible' || canvas.offsetParent === null || canvas.clientWidth === 0) {
@@ -674,13 +664,8 @@ async function renderSessionCompletion(){
   }
   const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
   if(window.sessionChart){ try{ window.sessionChart.destroy(); }catch(_){} }
-  if (!window._pointValueLabelPluginSess) {
-    window._pointValueLabelPluginSess = {
-      id: 'pointValueLabelsSess',
-      afterDatasetsDraw(chart){ const {ctx, data}=chart; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.font='12px sans-serif'; ctx.fillStyle='#374151'; chart.getDatasetMeta(0).data.forEach((el,i)=>{ const v=data.datasets[0].data[i]; if(v==null) return; const {x,y}=el.tooltipPosition(); ctx.fillText(String(v), x, y-6); }); ctx.restore(); }
-    }; try { Chart.register(window._pointValueLabelPluginSess); } catch(_) {}
-  }
-  const sessConfig = { type:'line', data:{ labels, datasets:[{ type:'line', label:'완료수', data, borderColor:'rgba(59,130,246,1)', backgroundColor:'rgba(59,130,246,0.15)', borderWidth:2, tension:0.3, pointRadius:4, pointBackgroundColor:'#2563eb', pointBorderColor:'#2563eb', fill:false }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{ enabled:true }, pointValueLabelsSess:{} }, events:['mousemove','mouseout','click','touchstart','touchmove'], scales:{ y:{ beginAtZero:true } } } };
+  // 세션 차트도 포인트 라벨 플러그인 제거
+  const sessConfig = { type:'line', data:{ labels, datasets:[{ type:'line', label:'완료수', data, borderColor:'rgba(59,130,246,1)', backgroundColor:'rgba(59,130,246,0.15)', borderWidth:2, tension:0.3, pointRadius:4, pointHoverRadius:6, pointBackgroundColor:'#2563eb', pointBorderColor:'#2563eb', fill:true }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{ enabled:true } }, events:['mousemove','mouseout','click','touchstart','touchmove'], scales:{ y:{ beginAtZero:true } } } };
   const buildSess = ()=>{ window.sessionChart = new Chart(ctx, sessConfig); };
   if (document.visibilityState !== 'visible' || canvas.offsetParent === null || canvas.clientWidth === 0) {
     const onVis2 = ()=>{ if(document.visibilityState==='visible'){ buildSess(); document.removeEventListener('visibilitychange', onVis2); } };
