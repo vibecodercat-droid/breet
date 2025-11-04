@@ -745,7 +745,7 @@ async function renderSessionCompletion(){
       }
     }
   };
-  const buildSess = ()=>{ try { window.sessionChart = new Chart(ctx, sessConfig); } catch(e){ console.error('[sessionChart] init error', e); } };
+  const buildSess = ()=>{ try { window.sessionChart = new window.Chart(ctx, sessConfig); } catch(e){ console.error('[sessionChart] init error', e); } };
   if (document.visibilityState !== 'visible' || canvas.offsetParent === null || canvas.clientWidth === 0) {
     const onVis2 = ()=>{ if(document.visibilityState==='visible'){ buildSess(); document.removeEventListener('visibilitychange', onVis2); } };
     document.addEventListener('visibilitychange', onVis2);
