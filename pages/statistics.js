@@ -243,8 +243,7 @@ async function renderWeekly() {
         pointBorderWidth: 2,
         pointHoverBackgroundColor: '#16a34a',
         pointHoverBorderColor: '#fff',
-        fill: true,
-        type: 'line'
+        fill: true
       }]
     },
     options: {
@@ -720,8 +719,7 @@ async function renderSessionCompletion(){
         pointBorderWidth: 2,
         pointHoverBackgroundColor: '#2563eb',
         pointHoverBorderColor: '#fff',
-        fill: true,
-        type: 'line'
+        fill: true
       }]
     },
     options: {
