@@ -224,6 +224,8 @@ async function renderWeekly() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (window.weeklyChartInstance) { try { window.weeklyChartInstance.destroy(); } catch(_) {} }
+  // 안전: 기존 Chart 인스턴스 완전 제거 (v3+)
+  try { if (window.Chart && typeof window.Chart.getChart === 'function') { const prev = window.Chart.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
   // 포인트 라벨 플러그인은 이벤트 간섭 이슈가 있어 제거
   const weeklyConfig = {
     type: 'line',
@@ -269,7 +271,20 @@ async function renderWeekly() {
       }
     }
   };
-  const buildWeekly = ()=>{ try { window.weeklyChartInstance = new window.Chart(ctx, weeklyConfig); } catch(e){ console.error('[weeklyChart] init error', e); } };
+  const buildWeekly = ()=>{
+    try {
+      // 전역 기본값 충돌 방지: 라인 강제
+      if (window.Chart && window.Chart.defaults) {
+        window.Chart.defaults.type = 'line';
+        try { if (window.Chart.defaults.datasets && window.Chart.defaults.datasets.bar) { delete window.Chart.defaults.datasets.bar; } } catch(_){}
+      }
+      // 데이터셋 타입도 라인으로 강제 고정
+      try { (weeklyConfig.data?.datasets||[]).forEach(d=>{ d.type = 'line'; }); } catch(_){}
+      window.weeklyChartInstance = new window.Chart(ctx, weeklyConfig);
+      // 숨김 상태 초기화 시 사이즈 재계산
+      setTimeout(()=>{ try{ window.weeklyChartInstance && window.weeklyChartInstance.resize(); }catch(_){} }, 0);
+    } catch(e){ console.error('[weeklyChart] init error', e); }
+  };
   if (document.visibilityState !== 'visible' || canvas.offsetParent === null || canvas.clientWidth === 0) {
     const onVis = ()=>{ if(document.visibilityState==='visible'){ buildWeekly(); document.removeEventListener('visibilitychange', onVis); } };
     document.addEventListener('visibilitychange', onVis);
@@ -700,6 +715,8 @@ async function renderSessionCompletion(){
   }
   const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
   if(window.sessionChart){ try{ window.sessionChart.destroy(); }catch(_){} }
+  // 안전: 기존 Chart 인스턴스 완전 제거 (v3+)
+  try { if (window.Chart && typeof window.Chart.getChart === 'function') { const prev = window.Chart.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
   // 세션 차트도 포인트 라벨 플러그인 제거
   const sessConfig = {
     type: 'line',
@@ -745,7 +762,19 @@ async function renderSessionCompletion(){
       }
     }
   };
-  const buildSess = ()=>{ try { window.sessionChart = new window.Chart(ctx, sessConfig); } catch(e){ console.error('[sessionChart] init error', e); } };
+  const buildSess = ()=>{
+    try {
+      // 전역 기본값 충돌 방지: 라인 강제
+      if (window.Chart && window.Chart.defaults) {
+        window.Chart.defaults.type = 'line';
+        try { if (window.Chart.defaults.datasets && window.Chart.defaults.datasets.bar) { delete window.Chart.defaults.datasets.bar; } } catch(_){}
+      }
+      // 데이터셋 타입도 라인으로 강제 고정
+      try { (sessConfig.data?.datasets||[]).forEach(d=>{ d.type = 'line'; }); } catch(_){}
+      window.sessionChart = new window.Chart(ctx, sessConfig);
+      setTimeout(()=>{ try{ window.sessionChart && window.sessionChart.resize(); }catch(_){} }, 0);
+    } catch(e){ console.error('[sessionChart] init error', e); }
+  };
   if (document.visibilityState !== 'visible' || canvas.offsetParent === null || canvas.clientWidth === 0) {
     const onVis2 = ()=>{ if(document.visibilityState==='visible'){ buildSess(); document.removeEventListener('visibilitychange', onVis2); } };
     document.addEventListener('visibilitychange', onVis2);
