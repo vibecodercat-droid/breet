@@ -30,7 +30,7 @@ function ensureEChartContainer(canvasEl, idSuffix) {
   return div;
 }
 
-function getApex() { try { return (typeof window !== 'undefined') ? window.ApexCharts : undefined; } catch(_) { return undefined; } }
+function getApexCharts(){ try { return (typeof window !== 'undefined') ? window.ApexCharts : undefined; } catch(_) { return undefined; } }
 
 function ensureApexContainer(canvasEl, idSuffix) {
   const parent = canvasEl.parentElement || document.body;
@@ -38,10 +38,13 @@ function ensureApexContainer(canvasEl, idSuffix) {
   if (exist) return exist;
   const div = document.createElement('div');
   div.id = `${canvasEl.id}${idSuffix}`;
-  const w = canvasEl.offsetWidth || canvasEl.clientWidth || canvasEl.width || 600;
-  const h = canvasEl.offsetHeight || canvasEl.clientHeight || canvasEl.height || 250;
+  const rect = canvasEl.getBoundingClientRect();
+  const w = rect.width || canvasEl.width || canvasEl.clientWidth || 600;
+  const h = rect.height || canvasEl.height || canvasEl.clientHeight || 250;
   div.style.width = w + 'px';
   div.style.height = h + 'px';
+  div.style.display = 'block';
+  div.style.minWidth = '300px';
   if (canvasEl.nextSibling) parent.insertBefore(div, canvasEl.nextSibling); else parent.appendChild(div);
   return div;
 }
@@ -267,16 +270,17 @@ async function renderWeekly() {
   }
   const canvas = document.getElementById('weeklyChart');
   if (!canvas) return;
-  const Apex = getApex();
+  const ApexChartsClass = getApexCharts();
   const ECharts = getECharts();
   const ChartClass = getChartClass();
   // ApexCharts 우선
-  if (Apex) {
+  if (ApexChartsClass) {
     try {
       // 기존 Chart.js/ECharts 인스턴스 정리
       try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
       try { const ecd = document.getElementById(`${canvas.id}__ec`); if (ecd && ECharts) { const inst = ECharts.getInstanceByDom(ecd); if (inst) inst.dispose(); } } catch(_) {}
       const el = ensureApexContainer(canvas, '__apex');
+      el.style.display = 'block';
       if (window.apexWeekly) { try { window.apexWeekly.destroy(); } catch(_) {} }
       const opts = {
         chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true } },
@@ -290,8 +294,9 @@ async function renderWeekly() {
         colors: ['#22c55e'],
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
       };
-      const chart = new Apex(el, opts);
+      const chart = new ApexChartsClass(el, opts);
       chart.render();
+      try { chart.resize(); } catch(_) {}
       window.apexWeekly = chart;
       canvas.style.display = 'none';
       return;
@@ -812,14 +817,15 @@ async function renderSessionCompletion(){
     data=bucket;
   }
   const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return;
-  const Apex = getApex();
+  const ApexChartsClass = getApexCharts();
   const ECharts = getECharts();
   const ChartClass = getChartClass();
-  if (Apex) {
+  if (ApexChartsClass) {
     try {
       try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
       try { const ecd = document.getElementById(`${canvas.id}__ec`); if (ecd && ECharts) { const inst = ECharts.getInstanceByDom(ecd); if (inst) inst.dispose(); } } catch(_) {}
       const el = ensureApexContainer(canvas, '__apex');
+      el.style.display = 'block';
       if (window.apexSession) { try { window.apexSession.destroy(); } catch(_) {} }
       const opts = {
         chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true } },
@@ -833,8 +839,9 @@ async function renderSessionCompletion(){
         colors: ['#3b82f6'],
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
       };
-      const chart = new Apex(el, opts);
+      const chart = new ApexChartsClass(el, opts);
       chart.render();
+      try { chart.resize(); } catch(_) {}
       window.apexSession = chart;
       canvas.style.display = 'none';
       return;
