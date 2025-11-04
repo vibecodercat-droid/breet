@@ -290,9 +290,9 @@ async function renderWeekly() {
         series: [{ name: '투두 완료율', data: todoData }],
         xaxis: { categories: labels },
         yaxis: { min: 0, max: 100, labels: { formatter: (v)=> `${Math.round(v)}%` } },
-        dataLabels: { enabled: true, formatter: (v)=> `${v}%`, offsetY: -8, style: { fontSize: '11px', colors: ['#22c55e'] } },
+        dataLabels: { enabled: true, formatter: (v)=> `${v}%`, offsetY: -8, style: { fontSize: '11px', colors: ['#3b82f6'] } },
         stroke: { width: 3, curve: 'smooth' },
-        markers: { size: 4, colors: ['#22c55e'], strokeColors: '#d1d5db', strokeOpacity: 1, fillOpacity: 1 },
+        markers: { size: 4, colors: ['#3b82f6'], strokeColors: '#d1d5db', strokeOpacity: 1, fillOpacity: 1 },
         tooltip: { enabled: true, y: { formatter: (v)=> `${v}%` } },
         grid: { borderColor: 'rgba(0,0,0,0.05)', strokeDashArray: 2 },
         colors: ['rgba(66,66,66,0.5)'],
@@ -322,7 +322,7 @@ async function renderWeekly() {
         grid: { left: 32, right: 16, top: 16, bottom: 24 },
         xAxis: { type: 'category', data: labels, boundaryGap: false, axisLine:{lineStyle:{color:'#94a3b8'}}, axisTick:{show:false} },
         yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%' }, splitLine:{lineStyle:{color:'rgba(0,0,0,0.05)'}} },
-        series: [{ name: '투두 완료율', type: 'line', data: todoData, smooth: true, symbolSize: 6, areaStyle: { opacity: 0.15 }, lineStyle: { width: 3, color: '#22c55e' }, itemStyle: { color: '#22c55e' } }]
+        series: [{ name: '투두 완료율', type: 'line', data: todoData, smooth: true, symbolSize: 6, areaStyle: { opacity: 0.15 }, lineStyle: { width: 3, color: '#3b82f6' }, itemStyle: { color: '#3b82f6' } }]
       };
       instance.setOption(option, true);
       // 캔버스는 숨김(폴백용 유지)
@@ -348,7 +348,7 @@ async function renderWeekly() {
         tension: 0.4,
         pointRadius: 6,
         pointHoverRadius: 8,
-        pointBackgroundColor: '#22c55e',
+        pointBackgroundColor: '#3b82f6',
         pointBorderColor: '#fff',
         pointBorderWidth: 2,
         pointHoverBackgroundColor: '#16a34a',

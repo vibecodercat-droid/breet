@@ -64,23 +64,6 @@
         <div><canvas id="typeDistributionChart" height="200"></canvas></div>
       </section>
 
-      <!-- 투두리스트 완료율 (주/월) -->
-      <section class="bg-white rounded-lg shadow-sm p-4">
-        <div class="flex items-center justify-between mb-2">
-          <h2 class="text-base font-semibold">투두리스트 완료율</h2>
-          <div class="flex items-center gap-2">
-            <div class="flex items-center gap-1 bg-gray-100 rounded px-1 py-0.5">
-              <button id="weeklyModeWeek" class="px-2 py-1 text-xs rounded bg-white">주간</button>
-              <button id="weeklyModeMonth" class="px-2 py-1 text-xs rounded">월간</button>
-            </div>
-            <button id="prevWeek" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">◀</button>
-            <div id="weekInfo" class="text-xs text-gray-600 min-w-[160px] text-center"></div>
-            <button id="nextWeek" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">▶</button>
-          </div>
-        </div>
-        <canvas id="weeklyChart" width="780" height="250"></canvas>
-      </section>
-
       <!-- 세션 완료수 (주/월) -->
       <section class="bg-white rounded-lg shadow-sm p-4">
         <div class="flex items-center justify-between mb-2">
@@ -96,6 +79,23 @@
           </div>
         </div>
         <canvas id="sessionCompletionChart" width="780" height="250"></canvas>
+      </section>
+
+      <!-- 투두리스트 완료율 (주/월) -->
+      <section class="bg-white rounded-lg shadow-sm p-4">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-base font-semibold">투두리스트 완료율</h2>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1 bg-gray-100 rounded px-1 py-0.5">
+              <button id="weeklyModeWeek" class="px-2 py-1 text-xs rounded bg-white">주간</button>
+              <button id="weeklyModeMonth" class="px-2 py-1 text-xs rounded">월간</button>
+            </div>
+            <button id="prevWeek" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">◀</button>
+            <div id="weekInfo" class="text-xs text-gray-600 min-w-[160px] text-center"></div>
+            <button id="nextWeek" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">▶</button>
+          </div>
+        </div>
+        <canvas id="weeklyChart" width="780" height="250"></canvas>
       </section>
 
       <!-- 시간대별 활동 히트맵 -->
