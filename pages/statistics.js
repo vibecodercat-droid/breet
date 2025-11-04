@@ -30,6 +30,22 @@ function ensureEChartContainer(canvasEl, idSuffix) {
   return div;
 }
 
+function getApex() { try { return (typeof window !== 'undefined') ? window.ApexCharts : undefined; } catch(_) { return undefined; } }
+
+function ensureApexContainer(canvasEl, idSuffix) {
+  const parent = canvasEl.parentElement || document.body;
+  const exist = parent.querySelector(`#${canvasEl.id}${idSuffix}`);
+  if (exist) return exist;
+  const div = document.createElement('div');
+  div.id = `${canvasEl.id}${idSuffix}`;
+  const w = canvasEl.offsetWidth || canvasEl.clientWidth || canvasEl.width || 600;
+  const h = canvasEl.offsetHeight || canvasEl.clientHeight || canvasEl.height || 250;
+  div.style.width = w + 'px';
+  div.style.height = h + 'px';
+  if (canvasEl.nextSibling) parent.insertBefore(div, canvasEl.nextSibling); else parent.appendChild(div);
+  return div;
+}
+
 // 선택된 날짜 상태
 let selectedDate = new Date();
 selectedDate.setHours(0, 0, 0, 0);
@@ -251,9 +267,36 @@ async function renderWeekly() {
   }
   const canvas = document.getElementById('weeklyChart');
   if (!canvas) return;
+  const Apex = getApex();
   const ECharts = getECharts();
   const ChartClass = getChartClass();
-  // ECharts 우선
+  // ApexCharts 우선
+  if (Apex) {
+    try {
+      // 기존 Chart.js/ECharts 인스턴스 정리
+      try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
+      try { const ecd = document.getElementById(`${canvas.id}__ec`); if (ecd && ECharts) { const inst = ECharts.getInstanceByDom(ecd); if (inst) inst.dispose(); } } catch(_) {}
+      const el = ensureApexContainer(canvas, '__apex');
+      if (window.apexWeekly) { try { window.apexWeekly.destroy(); } catch(_) {} }
+      const opts = {
+        chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true } },
+        series: [{ name: '투두 완료율', data: todoData }],
+        xaxis: { categories: labels },
+        yaxis: { min: 0, max: 100, labels: { formatter: (v)=> `${Math.round(v)}%` } },
+        stroke: { width: 3, curve: 'smooth' },
+        markers: { size: 4 },
+        tooltip: { enabled: true, y: { formatter: (v)=> `${v}%` } },
+        colors: ['#22c55e'],
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
+      };
+      const chart = new Apex(el, opts);
+      chart.render();
+      window.apexWeekly = chart;
+      canvas.style.display = 'none';
+      return;
+    } catch (e) { console.error('[weeklyChart][apex] init error', e); }
+  }
+  // ECharts 폴백
   if (ECharts) {
     try {
       // 기존 Chart.js 인스턴스 정리
@@ -768,8 +811,33 @@ async function renderSessionCompletion(){
     data=bucket;
   }
   const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return;
+  const Apex = getApex();
   const ECharts = getECharts();
   const ChartClass = getChartClass();
+  if (Apex) {
+    try {
+      try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
+      try { const ecd = document.getElementById(`${canvas.id}__ec`); if (ecd && ECharts) { const inst = ECharts.getInstanceByDom(ecd); if (inst) inst.dispose(); } } catch(_) {}
+      const el = ensureApexContainer(canvas, '__apex');
+      if (window.apexSession) { try { window.apexSession.destroy(); } catch(_) {} }
+      const opts = {
+        chart: { type: 'line', height: el.clientHeight || 250, animations: { enabled: true } },
+        series: [{ name: '완료수', data: data }],
+        xaxis: { categories: labels },
+        yaxis: { min: 0, labels: { formatter: (v)=> `${Math.round(v)}회` } },
+        stroke: { width: 3, curve: 'smooth' },
+        markers: { size: 4 },
+        tooltip: { enabled: true, y: { formatter: (v)=> `${v}회` } },
+        colors: ['#3b82f6'],
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.05, stops: [0, 90, 100] } }
+      };
+      const chart = new Apex(el, opts);
+      chart.render();
+      window.apexSession = chart;
+      canvas.style.display = 'none';
+      return;
+    } catch (e) { console.error('[sessionChart][apex] init error', e); }
+  }
   if (ECharts) {
     try {
       try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
