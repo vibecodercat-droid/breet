@@ -126,7 +126,14 @@
       
       <!-- 세션 출석 캘린더 -->
       <section class="bg-white rounded-lg shadow-sm p-4">
-        <h2 class="text-base font-semibold mb-2">세션 출석</h2>
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-base font-semibold">세션 출석 <span id="attendanceRate" class="ml-2 text-sm text-gray-600"></span></h2>
+          <div class="flex items-center gap-2">
+            <button id="prevAttend" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">◀</button>
+            <div id="attendInfo" class="text-xs text-gray-600 min-w-[160px] text-center"></div>
+            <button id="nextAttend" class="px-2 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300">▶</button>
+          </div>
+        </div>
         <div id="attendanceCalendar" class="grid grid-cols-7 gap-2 max-w-2xl mx-auto justify-items-center"></div>
       </section>
       

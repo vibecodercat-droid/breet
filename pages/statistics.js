@@ -25,6 +25,8 @@ let typeMonthOffset = 0;
 let heatMode = 'week'; // 'week' | 'month'
 let heatWeekOffset = 0;
 let heatMonthOffset = 0;
+// 출석 달 네비게이션
+let attendMonthOffset = 0;
 
 /**
  * 선택된 날짜 표시
@@ -285,12 +287,13 @@ async function renderAttendanceCalendar() {
   const { breakHistory = [] } = await chrome.storage.local.get('breakHistory');
   calendar.innerHTML = '';
   
-  // 최근 30일 날짜 배열 생성
-  const days = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (29 - i));
-    return d;
-  });
+  // 월 기준 달력 날짜 생성
+  const base = new Date();
+  base.setMonth(base.getMonth() + attendMonthOffset);
+  base.setDate(1);
+  const monthStart = new Date(base.getFullYear(), base.getMonth(), 1);
+  const monthEnd = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  const days = Array.from({ length: monthEnd.getDate() }, (_, i) => new Date(base.getFullYear(), base.getMonth(), i+1));
   
   // 각 날짜별 세션 완료 여부 계산
   const attendanceMap = new Map();
@@ -324,6 +327,7 @@ async function renderAttendanceCalendar() {
   
   // 날짜 셀 렌더링
   const todayKey = localDateKey();
+  let presentDays = 0;
   days.forEach((date) => {
     const key = localDateKey(date.getTime());
     const hasSession = attendanceMap.has(key);
@@ -342,7 +346,17 @@ async function renderAttendanceCalendar() {
     cell.textContent = `${date.getMonth()+1}/${date.getDate()}`;
     cell.title = `${key}: ${completed ? '완료' : hasSession ? '시작' : '없음'}`;
     calendar.appendChild(cell);
+    if (completed) presentDays++;
   });
+
+  // 상단 정보 및 출석율 표시
+  const info = document.getElementById('attendInfo');
+  if (info) info.textContent = `${monthStart.getFullYear()}년 ${monthStart.getMonth()+1}월`;
+  const rateEl = document.getElementById('attendanceRate');
+  if (rateEl) {
+    const rate = days.length ? Math.round((presentDays / days.length) * 100) : 0;
+    rateEl.textContent = `(출석율 ${rate}%)`;
+  }
 }
 
 /**
@@ -474,6 +488,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const heatWeekBtn=document.getElementById('heatModeWeek'); if(heatWeekBtn) heatWeekBtn.addEventListener('click', ()=>setHeatMode('week'));
   const heatMonthBtn=document.getElementById('heatModeMonth'); if(heatMonthBtn) heatMonthBtn.addEventListener('click', ()=>setHeatMode('month'));
   updateHeatButtons();
+  // 출석 달 네비게이션
+  const prevAttend=document.getElementById('prevAttend');
+  const nextAttend=document.getElementById('nextAttend');
+  function moveAttend(delta){ attendMonthOffset = Math.min(0, attendMonthOffset + delta); renderAttendanceCalendar(); }
+  if(prevAttend) prevAttend.addEventListener('click', ()=>moveAttend(-1));
+  if(nextAttend) nextAttend.addEventListener('click', ()=>moveAttend(1));
   
   refreshAllStats();
   setupRealtimeUpdates();
