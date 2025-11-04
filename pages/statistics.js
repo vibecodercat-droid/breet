@@ -81,15 +81,20 @@ async function refreshSessionStats() {
   );
   const done = selected.filter((b) => b.completed).length;
   const count = selected.length;
-  const rate = count ? Math.round((done / count) * 100) : 0;
+  // 누적 시간 계산 (분 단위)
+  const workMinTotal = selected.reduce((sum, b) => sum + (b.workDuration || 0), 0);
+  const breakMinTotal = selected.reduce((sum, b) => sum + (b.duration || 0), 0);
   
   const doneEl = document.getElementById('sessionDone');
   const countEl = document.getElementById('sessionCount');
-  const rateEl = document.getElementById('sessionRate');
+  const workEl = document.getElementById('sessionWorkTime');
+  const breakEl = document.getElementById('sessionBreakTime');
   
   if (doneEl) doneEl.textContent = String(done);
   if (countEl) countEl.textContent = String(count);
-  if (rateEl) rateEl.textContent = `${rate}%`;
+  const fmt = (m)=>{ const h=Math.floor(m/60), mm=m%60; if(h>0){ return `${h}시간 ${mm}분`; } return `${mm}분`; };
+  if (workEl) workEl.textContent = fmt(workMinTotal);
+  if (breakEl) breakEl.textContent = fmt(breakMinTotal);
 }
 
 /**
@@ -219,15 +224,24 @@ async function renderWeekly() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (window.weeklyChartInstance) { try { window.weeklyChartInstance.destroy(); } catch(_) {} }
+  // 라인 차트 + 포인트 라벨
+  if (!window._pointValueLabelPlugin) {
+    window._pointValueLabelPlugin = {
+      id: 'pointValueLabels',
+      afterDatasetsDraw(chart){
+        const {ctx, data} = chart; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.font='12px sans-serif'; ctx.fillStyle='#374151';
+        chart.getDatasetMeta(0).data.forEach((el, i)=>{ const v = data.datasets[0].data[i]; if(v==null) return; const {x,y}=el.tooltipPosition(); ctx.fillText(String(v)+'%', x, y-6); });
+        ctx.restore();
+      }
+    }; try { Chart.register(window._pointValueLabelPlugin); } catch(_) {}
+  }
   window.weeklyChartInstance = new window.Chart(ctx, {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: labels,
-      datasets: [
-        { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
-      ]
+      datasets: [ { label: '투두 완료율', data: todoData, borderColor: 'rgba(34,197,94,1)', backgroundColor: 'rgba(34,197,94,0.15)', borderWidth: 2, tension: 0.3, pointRadius: 4, pointBackgroundColor:'#1d4ed8', pointBorderColor:'#1d4ed8' } ]
     },
-    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } } }
+    options: { responsive: true, maintainAspectRatio: false, plugins:{ legend:{display:false}, pointValueLabels:{} }, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } } }
   });
 }
 
@@ -653,7 +667,13 @@ async function renderSessionCompletion(){
   }
   const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
   if(window.sessionChart){ try{ window.sessionChart.destroy(); }catch(_){} }
-  window.sessionChart = new Chart(ctx,{ type:'bar', data:{ labels, datasets:[{ label:'완료수', data, backgroundColor:'rgba(59,130,246,0.6)', borderColor:'rgba(59,130,246,1)', borderWidth:2 }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } } });
+  if (!window._pointValueLabelPluginSess) {
+    window._pointValueLabelPluginSess = {
+      id: 'pointValueLabelsSess',
+      afterDatasetsDraw(chart){ const {ctx, data}=chart; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.font='12px sans-serif'; ctx.fillStyle='#374151'; chart.getDatasetMeta(0).data.forEach((el,i)=>{ const v=data.datasets[0].data[i]; if(v==null) return; const {x,y}=el.tooltipPosition(); ctx.fillText(String(v), x, y-6); }); ctx.restore(); }
+    }; try { Chart.register(window._pointValueLabelPluginSess); } catch(_) {}
+  }
+  window.sessionChart = new Chart(ctx,{ type:'line', data:{ labels, datasets:[{ label:'완료수', data, borderColor:'rgba(59,130,246,1)', backgroundColor:'rgba(59,130,246,0.15)', borderWidth:2, tension:0.3, pointRadius:4, pointBackgroundColor:'#2563eb', pointBorderColor:'#2563eb' }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, pointValueLabelsSess:{} }, scales:{ y:{ beginAtZero:true } } } });
 }
 
 async function renderStreak(){
