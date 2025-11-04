@@ -296,13 +296,7 @@ async function renderWeekly() {
         tooltip: { enabled: true, y: { formatter: (v)=> `${v}%` } },
         grid: { borderColor: 'rgba(0,0,0,0.05)', strokeDashArray: 2 },
         colors: ['rgba(66,66,66,0.5)'],
-        fill: { type: 'gradient', colors: ['#22c55e'], gradient: { 
-          shadeIntensity: 0,
-          gradientToColors: ['#22c55e'],
-          opacityFrom: 0.12,
-          opacityTo: 0.02,
-          stops: [0, 100]
-        } }
+        fill: { type: 'solid', opacity: 0 }
       };
       const chart = new ApexChartsClass(el, opts);
       chart.render();
@@ -851,13 +845,7 @@ async function renderSessionCompletion(){
         tooltip: { enabled: true, y: { formatter: (v)=> `${v}회` } },
         grid: { borderColor: 'rgba(0,0,0,0.05)', strokeDashArray: 2 },
         colors: ['rgba(66,66,66,0.5)'],
-        fill: { type: 'gradient', colors: ['#3b82f6'], gradient: { 
-          shadeIntensity: 0,
-          gradientToColors: ['#3b82f6'],
-          opacityFrom: 0.12,
-          opacityTo: 0.02,
-          stops: [0, 100]
-        } }
+        fill: { type: 'solid', opacity: 0 }
       };
       const chart = new ApexChartsClass(el, opts);
       chart.render();
