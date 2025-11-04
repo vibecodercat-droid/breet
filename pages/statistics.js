@@ -169,6 +169,7 @@ async function renderWeekly() {
   const weekInfoEl = document.getElementById('weekInfo');
   let labels = [];
   let todoData = [];
+  let prevData = [];
   if (weeklyMode === 'week') {
     const weekInfo = getWeekInfo(new Date(), weekOffset);
     const startTs = weekInfo.start.getTime();
@@ -189,6 +190,24 @@ async function renderWeekly() {
       });
     }
     todoData = todoWeekly.map((w) => w.total ? Math.round((w.completed / w.total) * 100) : 0);
+
+    // 지난주 비교 데이터
+    const lastInfo = getWeekInfo(new Date(), weekOffset - 1);
+    const lastStart = lastInfo.start.getTime();
+    const lastEnd = new Date(lastInfo.end.getFullYear(), lastInfo.end.getMonth(), lastInfo.end.getDate(), 23,59,59,999).getTime();
+    const lastWeekly = Array.from({ length: bucketLen }, () => ({ total: 0, completed: 0 }));
+    for (const [dateKeyStr, todos] of Object.entries(todosByDate)) {
+      if (!Array.isArray(todos)) continue;
+      const ts = parseLocalDateKey(dateKeyStr);
+      if (!(ts >= lastStart && ts <= lastEnd)) continue;
+      const d = new Date(ts).getDay();
+      const idx = (d === 0) ? 6 : (d - 1);
+      todos.forEach((todo) => {
+        lastWeekly[idx].total += 1;
+        if (todo.completed) lastWeekly[idx].completed += 1;
+      });
+    }
+    prevData = lastWeekly.map((w) => w.total ? Math.round((w.completed / w.total) * 100) : 0);
   } else {
     const now = new Date();
     const base = new Date(now.getFullYear(), now.getMonth()+monthOffsetWeekly, 1);
@@ -216,28 +235,43 @@ async function renderWeekly() {
   const canvas = document.getElementById('weeklyChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  if (window.weeklyChartInstance) {
-    const inst = window.weeklyChartInstance;
-    const sameLen = inst && inst.data && Array.isArray(inst.data.labels) && inst.data.labels.length === labels.length;
-    if (sameLen) {
-      inst.data.labels = labels;
-      inst.data.datasets[0].data = todoData;
-      inst.update('none');
-      return;
-    } else {
-      try { inst.destroy(); } catch(_) {}
-      window.weeklyChartInstance = null;
-    }
+  if (window.weeklyChartInstance) { try { window.weeklyChartInstance.destroy(); } catch(_) {} }
+  // 플러그인: 막대 위에 값 표시
+  if (!window._barValueLabelPlugin) {
+    window._barValueLabelPlugin = {
+      id: 'barValueLabels',
+      afterDatasetsDraw(chart, args, pluginOptions){
+        const {ctx, data} = chart; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.font='12px sans-serif';
+        const unit = pluginOptions && pluginOptions.unit ? pluginOptions.unit : '';
+        chart.getDatasetMeta(0).data.forEach((el, i)=>{
+          const val = data.datasets[0].data[i]; if (val==null) return; const {x,y}=el.tooltipPosition();
+          ctx.fillStyle='#374151'; ctx.fillText(String(val)+(unit||''), x, y-4);
+        }); ctx.restore();
+      }
+    };
+    try { Chart.register(window._barValueLabelPlugin); } catch(_) {}
   }
   window.weeklyChartInstance = new window.Chart(ctx, {
     type: 'bar',
     data: {
       labels: labels,
-      datasets: [
-        { label: '투두 완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
+      datasets: weeklyMode==='week' ? [
+        { label: '지난주', data: prevData, backgroundColor: 'rgba(107,114,128,0.25)', borderColor:'rgba(107,114,128,0.25)', borderWidth:1 },
+        { label: '이번주', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.7)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
+      ] : [
+        { label: '완료율', data: todoData, backgroundColor: 'rgba(34, 197, 94, 0.7)', borderColor: 'rgba(34,197,94,1)', borderWidth: 2 }
       ]
     },
-    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function(v){ return String(v) + '%'; } } } } }
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true },
+        title: { display: true, text: '단위: %' },
+        tooltip: { callbacks: { label: function(ctx){ const v = ctx.parsed.y; return (ctx.dataset.label? ctx.dataset.label+': ':'') + v + '%'; } } },
+        barValueLabels: { unit: '%' }
+      },
+      scales: { y: { beginAtZero: true, max: 100, grid:{ color:'rgba(0,0,0,0.05)' }, ticks: { callback: function(v){ return String(v) + '%'; } } } }
+    }
   });
 }
 
@@ -645,7 +679,32 @@ async function renderSessionCompletion(){
   }
   const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
   if(window.sessionChart){ try{ window.sessionChart.destroy(); }catch(_){} }
-  window.sessionChart = new Chart(ctx,{ type:'bar', data:{ labels, datasets:[{ label:'완료수', data, backgroundColor:'rgba(59,130,246,0.6)', borderColor:'rgba(59,130,246,1)', borderWidth:2 }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } } });
+  // 지난주 비교 (주간 모드일 때만)
+  let prev = [];
+  if (sessionMode==='week'){
+    const info=getWeekInfo(new Date(), sessionWeekOffset-1);
+    const s=info.start.getTime(); const e=new Date(info.end.getFullYear(), info.end.getMonth(), info.end.getDate(),23,59,59,999).getTime();
+    const bucket=Array(7).fill(0);
+    const { breakHistory:bh=[] } = await chrome.storage.local.get('breakHistory');
+    bh.forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=s&&ts<=e)) return; if(!b.completed) return; const d=new Date(ts).getDay(); const idx=(d===0)?6:(d-1); bucket[idx]++; });
+    prev = bucket;
+  }
+  // 플러그인: 값 라벨
+  if (!window._barValueLabelPlugin) {
+    window._barValueLabelPlugin = {
+      id: 'barValueLabels',
+      afterDatasetsDraw(chart, args, pluginOptions){
+        const {ctx, data} = chart; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.font='12px sans-serif';
+        const unit = pluginOptions && pluginOptions.unit ? pluginOptions.unit : '';
+        chart.getDatasetMeta(chart.data.datasets.length-1).data.forEach((el, i)=>{
+          const val = data.datasets[data.datasets.length-1].data[i]; if (val==null) return; const {x,y}=el.tooltipPosition();
+          ctx.fillStyle='#374151'; ctx.fillText(String(val)+(unit||''), x, y-4);
+        }); ctx.restore();
+      }
+    };
+    try { Chart.register(window._barValueLabelPlugin); } catch(_) {}
+  }
+  window.sessionChart = new Chart(ctx,{ type:'bar', data:{ labels, datasets: (sessionMode==='week' ? [ {label:'지난주', data:prev, backgroundColor:'rgba(107,114,128,0.25)', borderColor:'rgba(107,114,128,0.25)'} ] : []).concat([{ label:'이번주', data, backgroundColor:'rgba(59,130,246,0.7)', borderColor:'rgba(59,130,246,1)', borderWidth:2 }]) }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:true }, title:{ display:true, text:'단위: 회' }, tooltip:{ callbacks:{ label:function(ctx){ const v=ctx.parsed.y; return (ctx.dataset.label? ctx.dataset.label+': ':'')+ v + '회'; } } }, barValueLabels:{ unit:'회' } }, scales:{ y:{ beginAtZero:true, grid:{ color:'rgba(0,0,0,0.05)' } } } } });
 }
 
 async function renderStreak(){
