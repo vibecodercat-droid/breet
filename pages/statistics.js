@@ -578,13 +578,7 @@ async function renderTypeDistribution(){
   const infoEl=document.getElementById('typeInfo');
   if(infoEl){
     const periodText = (typeMode==='week') ? wInfo.text : `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`;
-    if(total>0){
-      const [topLabel, topVal] = sorted[0];
-      const topPct = Math.round((topVal/total)*100);
-      infoEl.textContent = `${periodText} · 최다: ${topLabel} ${topVal}회 (${topPct}%)`;
-    } else {
-      infoEl.textContent = `${periodText}`;
-    }
+    infoEl.textContent = `${periodText}`;
   }
 }
 
