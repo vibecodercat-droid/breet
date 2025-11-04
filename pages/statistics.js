@@ -505,13 +505,9 @@ async function renderTypeDistribution(){
   const eTs=new Date(eRef.getFullYear(), eRef.getMonth(), eRef.getDate(), 23,59,59,999).getTime();
   const counts={}; const names={eyeExercise:'눈 운동',stretching:'스트레칭',breathing:'호흡',hydration:'수분',movement:'움직임'};
   breakHistory.filter(b=>b.completed).forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=sTs&&ts<=eTs)) return; const k=names[b.breakType]||b.breakType||'기타'; counts[k]=(counts[k]||0)+1; });
-  // 내림차순 정렬하여 왼쪽->오른쪽으로 순위가 낮아지도록
-  const sorted = Object.entries(counts).sort((a,b)=> b[1]-a[1]);
-  const labels = sorted.map(([k])=>k);
-  const values = sorted.map(([,v])=>v);
   const canvas=document.getElementById('typeDistributionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
   if(window.typeChart) { window.typeChart.destroy(); }
-  window.typeChart = new Chart(ctx,{ type:'bar', data:{ labels:labels, datasets:[{ label:'횟수', data:values, backgroundColor:'#3b82f6', borderColor:'#3b82f6', borderWidth:1 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } } } });
+  window.typeChart = new Chart(ctx,{ type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'] }] }, options:{ responsive:true, maintainAspectRatio:false, cutout: '0%', plugins:{ legend:{ position:'bottom' } }, scales: {} } });
   const infoEl=document.getElementById('typeInfo'); if(infoEl){ infoEl.textContent = (typeMode==='week') ? wInfo.text : `${mStart.getFullYear()}년 ${mStart.getMonth()+1}월 (${mStart.getMonth()+1}/1 ~ ${mEnd.getMonth()+1}/${mEnd.getDate()})`; }
 }
 
