@@ -533,6 +533,7 @@ async function renderTypeDistribution(){
       '움직임': { bg: 'rgba(234,179,8,0.15)', fg: '#b45309', icon: '🚶' },
       '기타': { bg: 'rgba(107,114,128,0.12)', fg: '#374151', icon: '✨' }
     };
+    const cardEls = [];
     sorted.forEach(([label, value])=>{
       const pct = total ? Math.round((value/total)*100) : 0;
       const c = palette[label] || palette['기타'];
@@ -562,17 +563,17 @@ async function renderTypeDistribution(){
       barWrap.appendChild(bar);
       body.appendChild(top); body.appendChild(barWrap);
       card.appendChild(icon); card.appendChild(body);
-      // 높이 1.3배 확대 처리: 먼저 추가 후 실제 높이를 측정해 minHeight 설정
-      card.style.visibility = 'hidden';
       grid.appendChild(card);
-      try {
-        const h = card.getBoundingClientRect().height || 0;
-        if (h > 0) {
-          card.style.minHeight = (h * 1.3) + 'px';
-        }
-      } catch (_) {}
-      card.style.visibility = '';
+      cardEls.push(card);
     });
+    // 모든 카드의 높이를 동일하게(가장 큰 카드 기준) 맞춤
+    try {
+      requestAnimationFrame(()=>{
+        let maxH = 0;
+        cardEls.forEach(el=>{ const h=el.getBoundingClientRect().height||0; if(h>maxH) maxH=h; });
+        if(maxH>0){ cardEls.forEach(el=>{ el.style.minHeight = maxH + 'px'; }); }
+      });
+    } catch (_) {}
   }
   const infoEl=document.getElementById('typeInfo');
   if(infoEl){
