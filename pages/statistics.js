@@ -1,6 +1,15 @@
 import { toCsvAndDownload } from "../lib/csv.js";
 import { isSameLocalDay, localDateKey, parseLocalDateKey } from "../lib/date-utils.js";
 
+// Chart.js 전역 래퍼: UMD 빌드에 따라 window.Chart 또는 window.Chart.Chart 형태 모두 대응
+function getChartClass() {
+  try {
+    const ns = (typeof window !== 'undefined') ? window.Chart : undefined;
+    if (!ns) return undefined;
+    return ns.Chart ? ns.Chart : ns;
+  } catch (_) { return undefined; }
+}
+
 // 선택된 날짜 상태
 let selectedDate = new Date();
 selectedDate.setHours(0, 0, 0, 0);
@@ -223,9 +232,10 @@ async function renderWeekly() {
   const canvas = document.getElementById('weeklyChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  const ChartClass = getChartClass();
   if (window.weeklyChartInstance) { try { window.weeklyChartInstance.destroy(); } catch(_) {} }
   // 안전: 기존 Chart 인스턴스 완전 제거 (v3+)
-  try { if (window.Chart && typeof window.Chart.getChart === 'function') { const prev = window.Chart.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
+  try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
   // 포인트 라벨 플러그인은 이벤트 간섭 이슈가 있어 제거
   const weeklyConfig = {
     type: 'line',
@@ -274,13 +284,12 @@ async function renderWeekly() {
   const buildWeekly = ()=>{
     try {
       // 전역 기본값 충돌 방지: 라인 강제
-      if (window.Chart && window.Chart.defaults) {
-        window.Chart.defaults.type = 'line';
-        try { if (window.Chart.defaults.datasets && window.Chart.defaults.datasets.bar) { delete window.Chart.defaults.datasets.bar; } } catch(_){}
-      }
+      if (ChartClass && ChartClass.defaults) {
+        ChartClass.defaults.type = 'line';
+        try { if (ChartClass.defaults.datasets && ChartClass.defaults.datasets.bar) { delete ChartClass.defaults.datasets.bar; } } catch(_){}}
       // 데이터셋 타입도 라인으로 강제 고정
       try { (weeklyConfig.data?.datasets||[]).forEach(d=>{ d.type = 'line'; }); } catch(_){}
-      window.weeklyChartInstance = new window.Chart(ctx, weeklyConfig);
+      window.weeklyChartInstance = new ChartClass(ctx, weeklyConfig);
       // 숨김 상태 초기화 시 사이즈 재계산
       setTimeout(()=>{ try{ window.weeklyChartInstance && window.weeklyChartInstance.resize(); }catch(_){} }, 0);
     } catch(e){ console.error('[weeklyChart] init error', e); }
@@ -714,9 +723,10 @@ async function renderSessionCompletion(){
     data=bucket;
   }
   const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
+  const ChartClass = getChartClass();
   if(window.sessionChart){ try{ window.sessionChart.destroy(); }catch(_){} }
   // 안전: 기존 Chart 인스턴스 완전 제거 (v3+)
-  try { if (window.Chart && typeof window.Chart.getChart === 'function') { const prev = window.Chart.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
+  try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
   // 세션 차트도 포인트 라벨 플러그인 제거
   const sessConfig = {
     type: 'line',
@@ -765,13 +775,13 @@ async function renderSessionCompletion(){
   const buildSess = ()=>{
     try {
       // 전역 기본값 충돌 방지: 라인 강제
-      if (window.Chart && window.Chart.defaults) {
-        window.Chart.defaults.type = 'line';
-        try { if (window.Chart.defaults.datasets && window.Chart.defaults.datasets.bar) { delete window.Chart.defaults.datasets.bar; } } catch(_){}
+      if (ChartClass && ChartClass.defaults) {
+        ChartClass.defaults.type = 'line';
+        try { if (ChartClass.defaults.datasets && ChartClass.defaults.datasets.bar) { delete ChartClass.defaults.datasets.bar; } } catch(_){}
       }
       // 데이터셋 타입도 라인으로 강제 고정
       try { (sessConfig.data?.datasets||[]).forEach(d=>{ d.type = 'line'; }); } catch(_){}
-      window.sessionChart = new window.Chart(ctx, sessConfig);
+      window.sessionChart = new ChartClass(ctx, sessConfig);
       setTimeout(()=>{ try{ window.sessionChart && window.sessionChart.resize(); }catch(_){} }, 0);
     } catch(e){ console.error('[sessionChart] init error', e); }
   };
