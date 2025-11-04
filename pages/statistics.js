@@ -10,6 +10,26 @@ function getChartClass() {
   } catch (_) { return undefined; }
 }
 
+function getECharts() {
+  try { return (typeof window !== 'undefined') ? window.echarts : undefined; } catch (_) { return undefined; }
+}
+
+function ensureEChartContainer(canvasEl, idSuffix) {
+  const parent = canvasEl.parentElement || document.body;
+  const exist = parent.querySelector(`#${canvasEl.id}${idSuffix}`);
+  if (exist) return exist;
+  const div = document.createElement('div');
+  div.id = `${canvasEl.id}${idSuffix}`;
+  // 캔버스 크기 기준으로 컨테이너 사이즈 설정
+  const w = canvasEl.offsetWidth || canvasEl.clientWidth || canvasEl.width || 600;
+  const h = canvasEl.offsetHeight || canvasEl.clientHeight || canvasEl.height || 250;
+  div.style.width = w + 'px';
+  div.style.height = h + 'px';
+  // 캔버스 바로 뒤에 삽입
+  if (canvasEl.nextSibling) parent.insertBefore(div, canvasEl.nextSibling); else parent.appendChild(div);
+  return div;
+}
+
 // 선택된 날짜 상태
 let selectedDate = new Date();
 selectedDate.setHours(0, 0, 0, 0);
@@ -231,10 +251,35 @@ async function renderWeekly() {
   }
   const canvas = document.getElementById('weeklyChart');
   if (!canvas) return;
-  const ctx = canvas.getContext('2d');
+  const ECharts = getECharts();
   const ChartClass = getChartClass();
+  // ECharts 우선
+  if (ECharts) {
+    try {
+      // 기존 Chart.js 인스턴스 정리
+      try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
+      // 컨테이너 준비
+      const ecDom = ensureEChartContainer(canvas, '__ec');
+      // 이전 ECharts 인스턴스 dispose
+      try { const inst = ECharts.getInstanceByDom(ecDom); if (inst) inst.dispose(); } catch(_) {}
+      const instance = ECharts.init(ecDom);
+      window.weeklyEChart = instance;
+      const option = {
+        tooltip: { trigger: 'axis' },
+        grid: { left: 32, right: 16, top: 16, bottom: 24 },
+        xAxis: { type: 'category', data: labels, boundaryGap: false, axisLine:{lineStyle:{color:'#94a3b8'}}, axisTick:{show:false} },
+        yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%' }, splitLine:{lineStyle:{color:'rgba(0,0,0,0.05)'}} },
+        series: [{ name: '투두 완료율', type: 'line', data: todoData, smooth: true, symbolSize: 6, areaStyle: { opacity: 0.15 }, lineStyle: { width: 3, color: '#22c55e' }, itemStyle: { color: '#22c55e' } }]
+      };
+      instance.setOption(option, true);
+      // 캔버스는 숨김(폴백용 유지)
+      canvas.style.display = 'none';
+      return;
+    } catch (e) { console.error('[weeklyChart][echarts] init error', e); }
+  }
+  // 폴백: Chart.js
+  const ctx = canvas.getContext('2d');
   if (window.weeklyChartInstance) { try { window.weeklyChartInstance.destroy(); } catch(_) {} }
-  // 안전: 기존 Chart 인스턴스 완전 제거 (v3+)
   try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
   // 포인트 라벨 플러그인은 이벤트 간섭 이슈가 있어 제거
   const weeklyConfig = {
@@ -722,10 +767,30 @@ async function renderSessionCompletion(){
     breakHistory.forEach(b=>{ const ts=Date.parse(b.timestamp||0); if(!(ts>=s&&ts<=e)) return; if(!b.completed) return; const d=new Date(ts).getDate(); bucket[d-1]++; });
     data=bucket;
   }
-  const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return; const ctx=canvas.getContext('2d');
+  const canvas=document.getElementById('sessionCompletionChart'); if(!canvas) return;
+  const ECharts = getECharts();
   const ChartClass = getChartClass();
+  if (ECharts) {
+    try {
+      try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
+      const ecDom = ensureEChartContainer(canvas, '__ec');
+      try { const inst = ECharts.getInstanceByDom(ecDom); if (inst) inst.dispose(); } catch(_) {}
+      const instance = ECharts.init(ecDom);
+      window.sessionEChart = instance;
+      const option = {
+        tooltip: { trigger: 'axis' },
+        grid: { left: 32, right: 16, top: 16, bottom: 24 },
+        xAxis: { type: 'category', data: labels, boundaryGap: false, axisLine:{lineStyle:{color:'#94a3b8'}}, axisTick:{show:false} },
+        yAxis: { type: 'value', min: 0, axisLabel: { formatter: '{value}회' }, splitLine:{lineStyle:{color:'rgba(0,0,0,0.05)'}} },
+        series: [{ name: '완료수', type: 'line', data: data, smooth: true, symbolSize: 6, areaStyle: { opacity: 0.15 }, lineStyle: { width: 3, color: '#3b82f6' }, itemStyle: { color: '#3b82f6' } }]
+      };
+      instance.setOption(option, true);
+      canvas.style.display = 'none';
+      return;
+    } catch (e) { console.error('[sessionChart][echarts] init error', e); }
+  }
+  const ctx=canvas.getContext('2d');
   if(window.sessionChart){ try{ window.sessionChart.destroy(); }catch(_){} }
-  // 안전: 기존 Chart 인스턴스 완전 제거 (v3+)
   try { if (ChartClass && typeof ChartClass.getChart === 'function') { const prev = ChartClass.getChart(canvas); if (prev) prev.destroy(); } } catch(_) {}
   // 세션 차트도 포인트 라벨 플러그인 제거
   const sessConfig = {
